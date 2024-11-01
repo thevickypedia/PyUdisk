@@ -1,8 +1,24 @@
+import logging
+import os
 import subprocess
 from collections.abc import Generator
 
-from .models import Disk, Attributes
 from .config import EnvConfig
+from .models import Disk
+
+LOGGER = logging.getLogger(__name__)
+HANDLER = logging.StreamHandler()
+FORMATTER = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+HANDLER.setFormatter(FORMATTER)
+LOGGER.addHandler(HANDLER)
+LOGGER.setLevel(logging.INFO)
+
+
+def load_sample(filename: str):
+    with open(filename) as file:
+        return file.read()
 
 
 def disk_info() -> Generator[Disk]:
@@ -12,8 +28,18 @@ def disk_info() -> Generator[Disk]:
         Disk:
         Datastructure parsed as a Disk object.
     """
-    output = subprocess.check_output("udisksctl dump", shell=True)
-    text = output.decode(encoding="UTF-8")
+    dry_run = os.environ.get("DRY_RUN", "false") == "true"
+    if dry_run:
+        text = load_sample(
+            filename=os.environ.get("SAMPLE_FILE", "sample.txt")
+        )
+    else:
+        try:
+            output = subprocess.check_output("udisksctl dump", shell=True)
+        except subprocess.CalledProcessError as error:
+            LOGGER.error(error)
+            return
+        text = output.decode(encoding="UTF-8")
     formatted = {}
     head = None
     category = None
@@ -39,23 +65,24 @@ def disk_info() -> Generator[Disk]:
             except ValueError as error:
                 assert (
                     str(error) == "not enough values to unpack (expected 2, got 1)"
-                ), ValueError(error)
-                val = None
+                ), error
+                continue
             formatted[head][category][key] = val
     for key, value in formatted.items():
-        yield Disk(id=key, **value)
+        yield Disk(id=key, model="", **value)
 
 
 def monitor(**kwargs):
     # todo:
-    # include usage for condition
     # setup notification as per env vars
-    # use psutil to get utilization and partitions
+    # use psutil to get utilization, partitions, mount points, and model info
     env = EnvConfig(**kwargs)
     for disk in disk_info():
         for metric in env.metrics:
             attribute = disk.Attributes.model_dump().get(metric.attribute)
             if metric.max_threshold and attribute >= metric.max_threshold:
-                print(f"{metric.attribute} for {disk.id} is >= {metric.max_threshold}")
+                LOGGER.critical(f"{metric.attribute!r} for {disk.id!r} is >= {metric.max_threshold} at {attribute}")
             if metric.min_threshold and attribute <= metric.min_threshold:
-                print(f"{metric.attribute} for {disk.id} is <= {metric.min_threshold}")
+                LOGGER.critical(f"{metric.attribute!r} for {disk.id!r} is <= {metric.min_threshold} at {attribute}")
+            if metric.equal_match and attribute != metric.equal_match:
+                LOGGER.critical(f"{metric.attribute!r} for {disk.id!r} IS NOT {metric.equal_match} at {attribute}")

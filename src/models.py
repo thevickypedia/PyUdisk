@@ -5,6 +5,12 @@ from pydantic import BaseModel, field_validator
 
 
 class Info(BaseModel):
+    """Information about the disk.
+
+    >>> Info
+
+    """
+
     CanPowerOff: Optional[bool]
     Configuration: Optional[dict]
     ConnectionBus: Optional[str]
@@ -35,6 +41,7 @@ class Info(BaseModel):
     Vendor: Optional[str]
     WWN: Optional[str]
 
+    # noinspection PyMethodParameters
     @field_validator("Configuration", mode="before")
     def parse_json_dict(cls, value):
         if isinstance(value, str):
@@ -46,6 +53,12 @@ class Info(BaseModel):
 
 
 class Attributes(BaseModel):
+    """Attributes of the disk to retrieve SMART data.
+
+    >>> Attributes
+
+    """
+
     AamEnabled: Optional[bool]
     AamSupported: Optional[bool]
     AamVendorRecommendedValue: Optional[int]
@@ -74,6 +87,13 @@ class Attributes(BaseModel):
 
 
 class Disk(BaseModel):
+    """Collective disk information.
+
+    >>> Disk
+
+    """
+
     id: str
+    model: str
     Info: Info
     Attributes: Attributes
