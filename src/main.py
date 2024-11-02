@@ -3,6 +3,8 @@ import os
 import subprocess
 from collections.abc import Generator
 
+from pydantic import FilePath
+
 from .config import EnvConfig
 from .models import Disk
 
@@ -16,13 +18,25 @@ LOGGER.addHandler(HANDLER)
 LOGGER.setLevel(logging.INFO)
 
 
-def load_sample(filename: str):
+def load_sample(filename: str) -> str:
+    """Loads a sample file for testing purposes.
+
+    Args:
+        filename: Sample file to load.
+
+    Returns:
+        str:
+        Content of the sample file.
+    """
     with open(filename) as file:
         return file.read()
 
 
-def disk_info() -> Generator[Disk]:
+def disk_info(disk_lib: FilePath = "/usr/bin/udisksctl") -> Generator[Disk]:
     """Gathers disk information using the dump from 'udisksctl' command.
+
+    Args:
+        disk_lib: Path to the 'udisksctl' command.
 
     Yields:
         Disk:
@@ -35,7 +49,7 @@ def disk_info() -> Generator[Disk]:
         )
     else:
         try:
-            output = subprocess.check_output("udisksctl dump", shell=True)
+            output = subprocess.check_output(f"{disk_lib} dump", shell=True)
         except subprocess.CalledProcessError as error:
             LOGGER.error(error)
             return
@@ -77,7 +91,7 @@ def monitor(**kwargs):
     # setup notification as per env vars
     # use psutil to get utilization, partitions, mount points, and model info
     env = EnvConfig(**kwargs)
-    for disk in disk_info():
+    for disk in disk_info(env.disk_lib):
         for metric in env.metrics:
             attribute = disk.Attributes.model_dump().get(metric.attribute)
             if metric.max_threshold and attribute >= metric.max_threshold:

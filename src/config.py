@@ -1,7 +1,7 @@
 import os
 
 from typing import List, Optional, Any
-from pydantic import BaseModel, field_validator, HttpUrl
+from pydantic import BaseModel, field_validator, HttpUrl, FilePath
 from pydantic_settings import BaseSettings
 
 from .models import Attributes
@@ -43,6 +43,7 @@ class EnvConfig(BaseSettings):
 
     """
 
+    disk_lib: FilePath = "/usr/bin/udisksctl"
     metrics: Metric | List[Metric] = []
 
     # Email/SMS notifications
@@ -60,7 +61,7 @@ class EnvConfig(BaseSettings):
     # Telegram notifications
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: int | None = None
-    thread_id: int | None = None
+    telegram_thread_id: int | None = None
 
     # noinspection PyMethodParameters
     @field_validator("metrics", mode="after")
