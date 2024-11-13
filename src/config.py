@@ -1,7 +1,7 @@
 import os
-
 from typing import List, Optional, Any
-from pydantic import BaseModel, field_validator, HttpUrl, FilePath
+
+from pydantic import BaseModel, field_validator, HttpUrl, FilePath, Field
 from pydantic_settings import BaseSettings
 
 from .models import Attributes
@@ -62,6 +62,17 @@ class EnvConfig(BaseSettings):
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: int | None = None
     telegram_thread_id: int | None = None
+
+    disk_report: bool = True
+    report_file: str | None = Field(None, pattern=r"^(.*\.html)$")
+
+    # noinspection PyMethodParameters
+    @field_validator("disk_lib", mode="before")
+    def validate_disk_lib(cls, value: str) -> str:
+        """Validates the disk library path only when DRY_RUN is set to false."""
+        if os.environ.get("DRY_RUN", "false") == "true":
+            return __file__
+        return value
 
     # noinspection PyMethodParameters
     @field_validator("metrics", mode="after")

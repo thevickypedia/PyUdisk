@@ -1,21 +1,17 @@
-import logging
 import os
+import pathlib
 import subprocess
 from collections.abc import Generator
+from datetime import datetime
+from typing import List, Dict
 
-from pydantic import FilePath
+import jinja2
+from pydantic import FilePath, NewPath
 
 from .config import EnvConfig
+from .logger import LOGGER
 from .models import Disk
-
-LOGGER = logging.getLogger(__name__)
-HANDLER = logging.StreamHandler()
-FORMATTER = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-HANDLER.setFormatter(FORMATTER)
-LOGGER.addHandler(HANDLER)
-LOGGER.setLevel(logging.INFO)
+from .notification import notification_service, send_report
 
 
 def load_sample(filename: str) -> str:
@@ -40,7 +36,7 @@ def disk_info(disk_lib: FilePath = "/usr/bin/udisksctl") -> Generator[Disk]:
 
     Yields:
         Disk:
-        Datastructure parsed as a Disk object.
+        Data structure parsed as a Disk object.
     """
     dry_run = os.environ.get("DRY_RUN", "false") == "true"
     if dry_run:
@@ -77,26 +73,84 @@ def disk_info(disk_lib: FilePath = "/usr/bin/udisksctl") -> Generator[Disk]:
                 key = key.strip()
                 val = val.strip()
             except ValueError as error:
-                assert (
-                    str(error) == "not enough values to unpack (expected 2, got 1)"
-                ), error
+                assert str(error) == "not enough values to unpack (expected 2, got 1)", error
                 continue
             formatted[head][category][key] = val
     for key, value in formatted.items():
         yield Disk(id=key, model="", **value)
 
 
-def monitor(**kwargs):
-    # todo:
-    # setup notification as per env vars
-    # use psutil to get utilization, partitions, mount points, and model info
-    env = EnvConfig(**kwargs)
+def monitor_disk(env: EnvConfig) -> Generator[Disk]:
+    """Monitors disk attributes based on the configuration.
+
+    Args:
+        env: Environment variables configuration.
+
+    Yields:
+        Disk:
+        Data structure parsed as a Disk object.
+    """
+    message = ""
     for disk in disk_info(env.disk_lib):
         for metric in env.metrics:
             attribute = disk.Attributes.model_dump().get(metric.attribute)
             if metric.max_threshold and attribute >= metric.max_threshold:
-                LOGGER.critical(f"{metric.attribute!r} for {disk.id!r} is >= {metric.max_threshold} at {attribute}")
+                msg = f"{metric.attribute!r} for {disk.id!r} is >= {metric.max_threshold} at {attribute}"
+                LOGGER.critical(msg)
+                message += msg + "\n"
             if metric.min_threshold and attribute <= metric.min_threshold:
-                LOGGER.critical(f"{metric.attribute!r} for {disk.id!r} is <= {metric.min_threshold} at {attribute}")
+                msg = f"{metric.attribute!r} for {disk.id!r} is <= {metric.min_threshold} at {attribute}"
+                LOGGER.critical(msg)
+                message += msg + "\n"
             if metric.equal_match and attribute != metric.equal_match:
-                LOGGER.critical(f"{metric.attribute!r} for {disk.id!r} IS NOT {metric.equal_match} at {attribute}")
+                msg = f"{metric.attribute!r} for {disk.id!r} IS NOT {metric.equal_match} at {attribute}"
+                LOGGER.critical(msg)
+                message += msg + "\n"
+        yield disk
+    notification_service(
+        title="Disk Monitor Alert!!",
+        message=message, env_config=env
+    )
+
+
+def generate_report(data: List[Dict[str, str | int | float | bool]], filepath: NewPath) -> str:
+    """Generates an HTML report using Jinja2 template.
+
+    Args:
+        data: Data to render in the template.
+        filepath: Path to save the HTML report locally.
+
+    Returns:
+        str:
+        Rendered HTML report.
+    """
+    template_dir = pathlib.Path(__file__).parent
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))  # Adjust path as needed
+    template = env.get_template('template.html')
+    html_output = template.render(data=data)
+    if filepath:
+        with open(filepath, 'w') as file:
+            file.write(html_output)
+            file.flush()
+    return html_output
+
+
+def monitor(**kwargs) -> None:
+    """Entrypoint for the disk monitoring service.
+
+    Args:
+        **kwargs: Arbitrary keyword arguments.
+    """
+    # todo: use psutil to get utilization, partitions, mount points, and model info
+    env = EnvConfig(**kwargs)
+    report = [
+        disk.model_dump() for disk in monitor_disk(env)
+    ]
+    if report and env.disk_report and env.gmail_user and env.gmail_pass and env.recipient:
+        send_report(
+            title=f"Disk Report - {datetime.now().strftime('%c')}",
+            user=env.gmail_user,
+            password=env.gmail_pass,
+            recipient=env.recipient,
+            content=generate_report(report, env.report_file)
+        )

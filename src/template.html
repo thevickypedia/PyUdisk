@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table from Dicts</title>
+    <style>
+        table {
+            max-width: 80%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .nested-table {
+            margin-left: 20px;
+            border: 1px solid #ddd;
+        }
+        .nested-table th, .nested-table td {
+            padding: 5px;
+            border: 1px solid #ddd;
+        }
+        details {
+            margin-bottom: 20px;
+        }
+        summary {
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Disk Monitor Report</h1>
+
+    {% for row in data %}
+        <details>
+            <summary>
+                <strong>{{ row.id }}</strong>
+            </summary>
+
+            <div>
+                <h2>Attributes</h2>
+                {% if row.Attributes %}
+                    <table class="nested-table">
+                        <thead>
+                            <tr>
+                                <th>Attribute</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, value in row.Attributes.items() %}
+                                <tr>
+                                    <td>{{ key }}</td>
+                                    <td>{{ value }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No attributes available.</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <h2>Info</h2>
+                {% if row.Info %}
+                    <table class="nested-table">
+                        <thead>
+                            <tr>
+                                <th>Info Field</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, value in row.Info.items() %}
+                                <tr>
+                                    <td>{{ key }}</td>
+                                    <td>{{ value }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No info available.</p>
+                {% endif %}
+            </div>
+        </details>
+    {% endfor %}
+</body>
+</html>
