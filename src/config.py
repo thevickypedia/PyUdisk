@@ -80,8 +80,15 @@ class EnvConfig(BaseSettings):
         """Validates the metrics configuration."""
         if not isinstance(value, list):
             value = [value]
-        attributes = Attributes.model_json_schema().get('required')
-        attr_format = '\n\t- '.join(attributes) + '\n'
+        attributes = {
+            name: [
+                    dtype.get('type')
+                    for dtype in dtypes.get('anyOf')
+                    if dtype.get('type', '') != 'null'
+                ]
+            for name, dtypes in Attributes.model_json_schema().get('properties').items()
+        }
+        attr_format = '\n\t- '.join(attributes.keys()) + '\n'
         # pydantic datatype mapping for schema validation
         # from pydantic.json_schema import GenerateJsonSchema
         # print(GenerateJsonSchema().literal_schema())
@@ -93,28 +100,26 @@ class EnvConfig(BaseSettings):
             list: 'array',
         }
         for v in value:
-            assert v.attribute in attributes, \
+            assert attributes.get(v.attribute), \
                 f"\n\tattribute should be any one of the following\n\n\t- {attr_format}\n"
             if not any((v.equal_match, v.min_threshold, v.max_threshold)):
                 raise ValueError(
                     "At least one of (condition, min_threshold, max_threshold) is mandatory!!"
                 )
+            types = attributes[v.attribute]
+            if "number" in types or "integer" in types:
+                types = ["number", "integer"]
             if v.equal_match:
                 # Validate the equal match value
                 # The input for the equal match should be of the same type as the attribute
-                types = [
-                    attr_type.get('type')
-                    for attr_type in Attributes.model_json_schema().get('properties').get(v.attribute).get('anyOf')
-                    if attr_type.get('type') != 'null'
-                ]
-                if "number" in types or "integer" in types:
-                    types = ["number", "integer"]
                 assert datatypes.get(type(v.equal_match)) in types, \
                     f"\n\tequal_match '{v.equal_match}' should be of type {', '.join(types)}\n"
             if v.min_threshold:
+                assert types == ["number", "integer"], f"\nAttribute {v.attribute!r} is NOT a number/integer to set min_threshold\n"
                 assert type(v.min_threshold) in (int, float), \
                     f"\n\tmin_threshold '{v.min_threshold}' should be of type 'number'\n"
             if v.max_threshold:
+                assert types == ["number", "integer"], f"\nAttribute {v.attribute!r} is NOT a number/integer to set max_threshold\n"
                 assert type(v.max_threshold) in (int, float), \
                     f"\n\tmax_threshold '{v.max_threshold}' should be of type 'number'\n"
         return value

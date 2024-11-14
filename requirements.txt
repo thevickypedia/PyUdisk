@@ -2,5 +2,5 @@ psutil==6.0.0
 pydantic~=2.9.2
 pydantic-settings~=2.6.0
 requests~=2.32.3
-gmail-connector~=1.0.2
+gmail-connector>=1.0.2
 Jinja2~=3.1.4

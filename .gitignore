@@ -3,3 +3,5 @@ venv
 .env
 sample.txt
 temp.py
+__pycache__/
+report/

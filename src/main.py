@@ -146,11 +146,21 @@ def monitor(**kwargs) -> None:
     report = [
         disk.model_dump() for disk in monitor_disk(env)
     ]
-    if report and env.disk_report and env.gmail_user and env.gmail_pass and env.recipient:
-        send_report(
-            title=f"Disk Report - {datetime.now().strftime('%c')}",
-            user=env.gmail_user,
-            password=env.gmail_pass,
-            recipient=env.recipient,
-            content=generate_report(report, env.report_file)
-        )
+    if report:
+        LOGGER.info("Disk monitor reporthas been generated for %d disks", len(report))
+        if env.disk_report:
+            if env.gmail_user and env.gmail_pass and env.recipient:
+                LOGGER.info("Sending an email disk report to %s", env.recipient)
+                send_report(
+                    title=f"Disk Report - {datetime.now().strftime('%c')}",
+                    user=env.gmail_user,
+                    password=env.gmail_pass,
+                    recipient=env.recipient,
+                    content=generate_report(report, env.report_file)
+                )
+            else:
+                LOGGER.warning("Reporting feature was enabled but necessary notification vars not found!!")
+        else:
+            LOGGER.info("Reporting feature has been disabled!")
+    else:
+        LOGGER.warning("Disk monitor report was not generated!")
