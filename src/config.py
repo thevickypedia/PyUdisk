@@ -1,7 +1,7 @@
 import os
-from typing import List, Optional, Any
+from typing import Any, List, Optional
 
-from pydantic import BaseModel, field_validator, HttpUrl, FilePath, Field
+from pydantic import BaseModel, DirectoryPath, FilePath, HttpUrl, field_validator
 from pydantic_settings import BaseSettings
 
 from .models import Attributes
@@ -64,7 +64,7 @@ class EnvConfig(BaseSettings):
     telegram_thread_id: int | None = None
 
     disk_report: bool = True
-    report_file: str | None = Field(None, pattern=r"^(.*\.html)$")
+    report_dir: str | DirectoryPath = "report"
 
     # noinspection PyMethodParameters
     @field_validator("disk_lib", mode="before")
@@ -82,26 +82,27 @@ class EnvConfig(BaseSettings):
             value = [value]
         attributes = {
             name: [
-                    dtype.get('type')
-                    for dtype in dtypes.get('anyOf')
-                    if dtype.get('type', '') != 'null'
-                ]
-            for name, dtypes in Attributes.model_json_schema().get('properties').items()
+                dtype.get("type")
+                for dtype in dtypes.get("anyOf")
+                if dtype.get("type", "") != "null"
+            ]
+            for name, dtypes in Attributes.model_json_schema().get("properties").items()
         }
-        attr_format = '\n\t- '.join(attributes.keys()) + '\n'
+        attr_format = "\n\t- ".join(attributes.keys()) + "\n"
         # pydantic datatype mapping for schema validation
         # from pydantic.json_schema import GenerateJsonSchema
         # print(GenerateJsonSchema().literal_schema())
         datatypes = {
-            str: 'string',
-            int: 'integer',
-            float: 'number',
-            bool: 'boolean',
-            list: 'array',
+            str: "string",
+            int: "integer",
+            float: "number",
+            bool: "boolean",
+            list: "array",
         }
         for v in value:
-            assert attributes.get(v.attribute), \
-                f"\n\tattribute should be any one of the following\n\n\t- {attr_format}\n"
+            assert attributes.get(
+                v.attribute
+            ), f"\n\tattribute should be any one of the following\n\n\t- {attr_format}\n"
             if not any((v.equal_match, v.min_threshold, v.max_threshold)):
                 raise ValueError(
                     "At least one of (condition, min_threshold, max_threshold) is mandatory!!"
@@ -112,16 +113,27 @@ class EnvConfig(BaseSettings):
             if v.equal_match:
                 # Validate the equal match value
                 # The input for the equal match should be of the same type as the attribute
-                assert datatypes.get(type(v.equal_match)) in types, \
-                    f"\n\tequal_match '{v.equal_match}' should be of type {', '.join(types)}\n"
+                assert (
+                    datatypes.get(type(v.equal_match)) in types
+                ), f"\n\tequal_match '{v.equal_match}' should be of type {', '.join(types)}\n"
             if v.min_threshold:
-                assert types == ["number", "integer"], f"\nAttribute {v.attribute!r} is NOT a number/integer to set min_threshold\n"
-                assert type(v.min_threshold) in (int, float), \
-                    f"\n\tmin_threshold '{v.min_threshold}' should be of type 'number'\n"
+                assert types == [
+                    "number",
+                    "integer",
+                ], f"\nAttribute {v.attribute!r} is NOT a number/integer to set min_threshold\n"
+                assert type(v.min_threshold) in (
+                    int,
+                    float,
+                ), f"\n\tmin_threshold '{v.min_threshold}' should be of type 'number'\n"
             if v.max_threshold:
-                assert types == ["number", "integer"], f"\nAttribute {v.attribute!r} is NOT a number/integer to set max_threshold\n"
-                assert type(v.max_threshold) in (int, float), \
-                    f"\n\tmax_threshold '{v.max_threshold}' should be of type 'number'\n"
+                assert types == [
+                    "number",
+                    "integer",
+                ], f"\nAttribute {v.attribute!r} is NOT a number/integer to set max_threshold\n"
+                assert type(v.max_threshold) in (
+                    int,
+                    float,
+                ), f"\n\tmax_threshold '{v.max_threshold}' should be of type 'number'\n"
         return value
 
     class Config:

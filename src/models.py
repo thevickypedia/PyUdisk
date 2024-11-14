@@ -44,6 +44,7 @@ class Info(BaseModel):
     # noinspection PyMethodParameters
     @field_validator("Configuration", mode="before")
     def parse_json_dict(cls, value):
+        """Parses a string value into a JSON object."""
         if isinstance(value, str):
             try:
                 return json.loads(value)

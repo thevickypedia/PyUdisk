@@ -1,3 +1,6 @@
+from threading import Thread
+from typing import List
+
 import gmailconnector as gc
 import requests
 
@@ -12,7 +15,7 @@ def urljoin(*args) -> str:
         str:
         Joined url.
     """
-    return "/".join(map(lambda x: str(x).rstrip('/').lstrip('/'), args))
+    return "/".join(map(lambda x: str(x).rstrip("/").lstrip("/"), args))
 
 
 def notification_service(title: str, message: str, env_config: EnvConfig) -> None:
@@ -23,35 +26,54 @@ def notification_service(title: str, message: str, env_config: EnvConfig) -> Non
         message: Body of the notification.
         env_config: Environment variables' configuration.
     """
+    threads: List[Thread] = []
     if env_config.ntfy_url and env_config.ntfy_topic:
-        ntfy_fn(
-            title=title,
-            message=message,
-            url=env_config.ntfy_url,
-            topic=env_config.ntfy_topic,
-            username=env_config.ntfy_username,
-            password=env_config.ntfy_password,
+        thread = Thread(
+            target=ntfy_fn,
+            kwargs=dict(
+                title=title,
+                message=message,
+                url=env_config.ntfy_url,
+                topic=env_config.ntfy_topic,
+                username=env_config.ntfy_username,
+                password=env_config.ntfy_password,
+            ),
         )
+        threads.append(thread)
     if env_config.telegram_bot_token and env_config.telegram_chat_id:
-        telegram_fn(
-            title=title,
-            message=message,
-            bot_token=env_config.telegram_bot_token,
-            chat_id=env_config.telegram_chat_id,
-            message_thread_id=env_config.telegram_thread_id,
-            disable_notification=False,
+        thread = Thread(
+            target=telegram_fn,
+            kwargs=dict(
+                title=title,
+                message=message,
+                bot_token=env_config.telegram_bot_token,
+                chat_id=env_config.telegram_chat_id,
+                message_thread_id=env_config.telegram_thread_id,
+                disable_notification=False,
+            ),
         )
+        threads.append(thread)
     if env_config.gmail_user and env_config.gmail_pass and env_config.phone:
-        sms_fn(
-            title=title,
-            message=message,
-            user=env_config.gmail_user,
-            password=env_config.gmail_pass,
-            phone=env_config.phone,
+        thread = Thread(
+            target=sms_fn,
+            kwargs=dict(
+                title=title,
+                message=message,
+                user=env_config.gmail_user,
+                password=env_config.gmail_pass,
+                phone=env_config.phone,
+            ),
         )
+        threads.append(thread)
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
 
 
-def send_report(title: str, user: str, password: str, recipient: str, content: str) -> None:
+def send_report(
+    title: str, user: str, password: str, recipient: str, content: str
+) -> None:
     """Sends an email notification using Gmail's SMTP protocol.
 
     Args:
@@ -61,14 +83,9 @@ def send_report(title: str, user: str, password: str, recipient: str, content: s
         recipient: Email recipient.
         content: HTML body to attach to the email.
     """
-    email_obj = gc.SendEmail(
-        gmail_user=user,
-        gmail_pass=password
-    )
+    email_obj = gc.SendEmail(gmail_user=user, gmail_pass=password)
     response = email_obj.send_email(
-        subject=title,
-        recipient=recipient,
-        html_body=content
+        subject=title, recipient=recipient, html_body=content
     )
     if response.ok:
         LOGGER.info("Report sent successfully")
@@ -87,15 +104,8 @@ def sms_fn(title: str, message: str, user: str, password: str, phone: str) -> No
         password: Gmail password.
         phone: Phone number to send the SMS.
     """
-    sms_obj = gc.SendSMS(
-        gmail_user=user,
-        gmail_pass=password
-    )
-    response = sms_obj.send_sms(
-        phone=phone,
-        message=message,
-        subject=title
-    )
+    sms_obj = gc.SendSMS(gmail_user=user, gmail_pass=password)
+    response = sms_obj.send_sms(phone=phone, message=message, subject=title)
     if response.ok:
         LOGGER.info("SMS notification sent successfully")
     else:
@@ -104,12 +114,12 @@ def sms_fn(title: str, message: str, user: str, password: str, phone: str) -> No
 
 
 def ntfy_fn(
-        title: str,
-        message: str,
-        url: str,
-        topic: str,
-        username: str = None,
-        password: str = None,
+    title: str,
+    message: str,
+    url: str,
+    topic: str,
+    username: str = None,
+    password: str = None,
 ) -> None:
     """Sends a notification using Ntfy service.
 
@@ -128,8 +138,8 @@ def ntfy_fn(
         response = session.post(
             url=urljoin(url, topic),
             headers={
-                'X-Title': title,
-                'Content-Type': 'application/x-www-form-urlencoded',
+                "X-Title": title,
+                "Content-Type": "application/x-www-form-urlencoded",
             },
             data=message,
         )
@@ -141,12 +151,12 @@ def ntfy_fn(
 
 
 def telegram_fn(
-        title: str,
-        message: str,
-        bot_token: str,
-        chat_id: int,
-        message_thread_id: int = None,
-        disable_notification: bool = False,
+    title: str,
+    message: str,
+    bot_token: str,
+    chat_id: int,
+    message_thread_id: int = None,
+    disable_notification: bool = False,
 ) -> None:
     """Sends a notification using Telegram.
 
@@ -163,14 +173,13 @@ def telegram_fn(
         "chat_id": chat_id,
         "text": text,
         "parse_mode": "markdown",
-        "disable_notification": disable_notification
+        "disable_notification": disable_notification,
     }
     if message_thread_id:
         payload["message_thread_id"] = message_thread_id
     try:
         response = requests.post(
-            f"https://api.org/bot{bot_token}/sendMessage",
-            json=payload
+            f"https://api.org/bot{bot_token}/sendMessage", json=payload
         )
         response.raise_for_status()
         LOGGER.info("Telegram notification sent successfully")

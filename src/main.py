@@ -3,7 +3,7 @@ import pathlib
 import subprocess
 from collections.abc import Generator
 from datetime import datetime
-from typing import List, Dict
+from typing import Dict, List
 
 import jinja2
 from pydantic import FilePath, NewPath
@@ -40,9 +40,7 @@ def disk_info(disk_lib: FilePath = "/usr/bin/udisksctl") -> Generator[Disk]:
     """
     dry_run = os.environ.get("DRY_RUN", "false") == "true"
     if dry_run:
-        text = load_sample(
-            filename=os.environ.get("SAMPLE_FILE", "sample.txt")
-        )
+        text = load_sample(filename=os.environ.get("SAMPLE_FILE", "sample.txt"))
     else:
         try:
             output = subprocess.check_output(f"{disk_lib} dump", shell=True)
@@ -73,11 +71,13 @@ def disk_info(disk_lib: FilePath = "/usr/bin/udisksctl") -> Generator[Disk]:
                 key = key.strip()
                 val = val.strip()
             except ValueError as error:
-                assert str(error) == "not enough values to unpack (expected 2, got 1)", error
+                assert (
+                    str(error) == "not enough values to unpack (expected 2, got 1)"
+                ), error
                 continue
             formatted[head][category][key] = val
     for key, value in formatted.items():
-        yield Disk(id=key, model="", **value)
+        yield Disk(id=key, model=value.get("Info", {}).get("Model", ""), **value)
 
 
 def monitor_disk(env: EnvConfig) -> Generator[Disk]:
@@ -107,13 +107,15 @@ def monitor_disk(env: EnvConfig) -> Generator[Disk]:
                 LOGGER.critical(msg)
                 message += msg + "\n"
         yield disk
-    notification_service(
-        title="Disk Monitor Alert!!",
-        message=message, env_config=env
-    )
+    if message:
+        notification_service(
+            title="Disk Monitor Alert!!", message=message, env_config=env
+        )
 
 
-def generate_report(data: List[Dict[str, str | int | float | bool]], filepath: NewPath) -> str:
+def generate_html(
+    data: List[Dict[str, str | int | float | bool]], filepath: NewPath
+) -> str:
     """Generates an HTML report using Jinja2 template.
 
     Args:
@@ -125,13 +127,14 @@ def generate_report(data: List[Dict[str, str | int | float | bool]], filepath: N
         Rendered HTML report.
     """
     template_dir = pathlib.Path(__file__).parent
-    env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))  # Adjust path as needed
-    template = env.get_template('template.html')
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(template_dir)
+    )  # Adjust path as needed
+    template = env.get_template("template.html")
     html_output = template.render(data=data)
-    if filepath:
-        with open(filepath, 'w') as file:
-            file.write(html_output)
-            file.flush()
+    with open(filepath, "w") as file:
+        file.write(html_output)
+        file.flush()
     return html_output
 
 
@@ -141,25 +144,34 @@ def monitor(**kwargs) -> None:
     Args:
         **kwargs: Arbitrary keyword arguments.
     """
-    # todo: use psutil to get utilization, partitions, mount points, and model info
+    # todo:
+    #   use psutil to get utilization, partitions, mount points, and model info
+    #   add more attributes/info to disk (like free-space, partitions, % used)
+    #   use pyrpoject.toml and click to onboard a CLI tool -> upload to pypi
     env = EnvConfig(**kwargs)
-    report = [
-        disk.model_dump() for disk in monitor_disk(env)
-    ]
-    if report:
-        LOGGER.info("Disk monitor reporthas been generated for %d disks", len(report))
+    disk_report = [disk.model_dump() for disk in monitor_disk(env)]
+    if disk_report:
+        LOGGER.info(
+            "Disk monitor reporthas been generated for %d disks", len(disk_report)
+        )
         if env.disk_report:
             if env.gmail_user and env.gmail_pass and env.recipient:
                 LOGGER.info("Sending an email disk report to %s", env.recipient)
+                os.makedirs(env.report_dir, exist_ok=True)
+                report_file = datetime.now().strftime(
+                    os.path.join(env.report_dir, "disk_report_%m-%d-%Y.html")
+                )
                 send_report(
                     title=f"Disk Report - {datetime.now().strftime('%c')}",
                     user=env.gmail_user,
                     password=env.gmail_pass,
                     recipient=env.recipient,
-                    content=generate_report(report, env.report_file)
+                    content=generate_html(disk_report, report_file),
                 )
             else:
-                LOGGER.warning("Reporting feature was enabled but necessary notification vars not found!!")
+                LOGGER.warning(
+                    "Reporting feature was enabled but necessary notification vars not found!!"
+                )
         else:
             LOGGER.info("Reporting feature has been disabled!")
     else:

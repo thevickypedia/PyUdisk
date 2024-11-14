@@ -41,7 +41,7 @@
     {% for row in data %}
         <details>
             <summary>
-                <strong>{{ row.id }}</strong>
+                <strong>{{ row.model | default(row.id) }}</strong>
             </summary>
 
             <div>
