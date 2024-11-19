@@ -1,7 +1,10 @@
 .idea
 venv
 .env
-sample.txt
 temp.py
 __pycache__/
 report/
+
+# Sample files
+dump.txt
+partitions.json

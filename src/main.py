@@ -1,3 +1,4 @@
+import json
 import os
 import pathlib
 import subprocess
@@ -6,6 +7,8 @@ from datetime import datetime
 from typing import Dict, List
 
 import jinja2
+import psutil
+from psutil._common import sdiskpart
 from pydantic import FilePath, NewPath
 
 from .config import EnvConfig
@@ -14,21 +17,67 @@ from .models import Disk
 from .notification import notification_service, send_report
 
 
-def load_sample(filename: str) -> str:
-    """Loads a sample file for testing purposes.
+def load_partitions(filename: str) -> Generator[sdiskpart]:
+    """Loads disk partitions from a JSON file.
 
     Args:
-        filename: Sample file to load.
+        filename: Source file to load partitions from.
+
+    Yields:
+        sdiskpart:
+        Disk partition data structure.
+    """
+    with open(filename) as file:
+        partitions = json.load(file)
+    keys = list(sdiskpart._fields)
+    for partition in partitions:
+        result_dict = dict(zip(keys, partition))
+        yield sdiskpart(**result_dict)
+
+
+def get_disk():
+    """Gathers disk information using the 'psutil' library."""
+    dry_run = os.environ.get("DRY_RUN", "false") == "true"
+    if dry_run:
+        partitions = load_partitions(filename=os.environ.get("PARTITIONS", "partitions.json"))
+    else:
+        partitions = psutil.disk_partitions()
+    system_mountpoints = [
+        '/sys', '/proc', '/dev', '/run', '/boot', '/tmp', '/var', '/snap',
+        '/sys/kernel', '/sys/fs', '/var/lib/docker', '/dev/loop', '/run/user', '/run/snapd'
+    ]
+    system_fstypes = [
+        'sysfs', 'proc', 'devtmpfs', 'tmpfs', 'devpts', 'fusectl', 'securityfs',
+        'overlay', 'hugetlbfs', 'debugfs', 'cgroup2', 'configfs', 'bpf', 'binfmt_misc',
+        'efivarfs', 'fuse', 'nsfs', 'squashfs', 'autofs', 'tracefs', 'pstore'
+    ]
+    # Filter out system partitions
+    filtered_partitions = [
+        part for part in partitions
+        if not any(part.mountpoint.startswith(mnt) for mnt in system_mountpoints)
+           and part.fstype not in system_fstypes
+    ]
+    # todo: Add results to the final output attributes and info as model
+    for partition in filtered_partitions:
+        print(partition.mountpoint)
+        print(psutil.disk_usage(partition.mountpoint))
+
+
+def load_dump(filename: str) -> str:
+    """Loads a dump file for testing purposes.
+
+    Args:
+        filename: Dump file to load.
 
     Returns:
         str:
-        Content of the sample file.
+        Content of the dump file.
     """
     with open(filename) as file:
         return file.read()
 
 
-def disk_info(disk_lib: FilePath = "/usr/bin/udisksctl") -> Generator[Disk]:
+def disk_info(disk_lib: FilePath) -> Generator[Disk]:
     """Gathers disk information using the dump from 'udisksctl' command.
 
     Args:
@@ -40,7 +89,7 @@ def disk_info(disk_lib: FilePath = "/usr/bin/udisksctl") -> Generator[Disk]:
     """
     dry_run = os.environ.get("DRY_RUN", "false") == "true"
     if dry_run:
-        text = load_sample(filename=os.environ.get("SAMPLE_FILE", "sample.txt"))
+        text = load_dump(filename=os.environ.get("DUMP", "dump.txt"))
     else:
         try:
             output = subprocess.check_output(f"{disk_lib} dump", shell=True)
@@ -145,8 +194,6 @@ def monitor(**kwargs) -> None:
         **kwargs: Arbitrary keyword arguments.
     """
     # todo:
-    #   use psutil to get utilization, partitions, mount points, and model info
-    #   add more attributes/info to disk (like free-space, partitions, % used)
     #   use pyrpoject.toml and click to onboard a CLI tool -> upload to pypi
     env = EnvConfig(**kwargs)
     disk_report = [disk.model_dump() for disk in monitor_disk(env)]
