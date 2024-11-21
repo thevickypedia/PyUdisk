@@ -13,7 +13,7 @@ from pydantic import FilePath, NewPath
 
 from .config import EnvConfig
 from .logger import LOGGER
-from .models import Disk, Drives, Partitions
+from .models import BlockDevices, Disk, Drives, Partitions
 from .notification import notification_service, send_report
 
 
@@ -44,50 +44,14 @@ def get_disk():
         )
     else:
         partitions = psutil.disk_partitions()
-    system_mountpoints = [
-        "/sys",
-        "/proc",
-        "/dev",
-        "/run",
-        "/boot",
-        "/tmp",
-        "/var",
-        "/snap",
-        "/sys/kernel",
-        "/sys/fs",
-        "/var/lib/docker",
-        "/dev/loop",
-        "/run/user",
-        "/run/snapd",
-    ]
-    system_fstypes = [
-        "sysfs",
-        "proc",
-        "devtmpfs",
-        "tmpfs",
-        "devpts",
-        "fusectl",
-        "securityfs",
-        "overlay",
-        "hugetlbfs",
-        "debugfs",
-        "cgroup2",
-        "configfs",
-        "bpf",
-        "binfmt_misc",
-        "efivarfs",
-        "fuse",
-        "nsfs",
-        "squashfs",
-        "autofs",
-        "tracefs",
-        "pstore",
-    ]
     # Filter out system partitions
     for partition in partitions:
         if (
-            not any(partition.mountpoint.startswith(mnt) for mnt in system_mountpoints)
-            and partition.fstype not in system_fstypes
+            not any(
+                partition.mountpoint.startswith(mnt)
+                for mnt in Partitions.system_mountpoints
+            )
+            and partition.fstype not in Partitions.system_fstypes
         ):
             yield partition
 
@@ -139,18 +103,17 @@ def parse_drives(input_data: str) -> Dict[str, str]:
         Dict[str, str]:
         Returns a dictionary of drives' metrics as key-value pairs.
     """
-    identifier = Drives
     formatted = {}
     head = None
     category = None
     for line in input_data.splitlines():
-        if line.startswith(identifier.head):
-            head = line.replace(identifier.head, "").rstrip(":").strip()
+        if line.startswith(Drives.head):
+            head = line.replace(Drives.head, "").rstrip(":").strip()
             formatted[head] = {}
-        elif line.strip() in (identifier.category1, identifier.category2):
+        elif line.strip() in (Drives.category1, Drives.category2):
             category = (
-                line.replace(identifier.category1, "Info")
-                .replace(identifier.category2, "Attributes")
+                line.replace(Drives.category1, "Info")
+                .replace(Drives.category2, "Attributes")
                 .strip()
             )
             formatted[head][category] = {}
@@ -178,27 +141,26 @@ def parse_block_devices(input_data: str) -> Dict[str, str]:
         Dict[str, str]:
         Returns a dictionary of block_devices' metrics as key-value pairs.
     """
-    identifier = Partitions
     block_devices = {}
     block = None
     category = None
     block_partitions = [
-        f"{identifier.head}{block_device.device.split('/')[-1]}:"
+        f"{BlockDevices.head}{block_device.device.split('/')[-1]}:"
         for block_device in get_disk()
     ]
     for line in input_data.splitlines():
         if line in block_partitions:
-            block = line.replace(identifier.head, "").rstrip(":").strip()
+            block = line.replace(BlockDevices.head, "").rstrip(":").strip()
             block_devices[block] = {}
         elif block and line.strip() in (
-            identifier.category1,
-            identifier.category2,
-            identifier.category3,
+            BlockDevices.category1,
+            BlockDevices.category2,
+            BlockDevices.category3,
         ):
             category = (
-                line.replace(identifier.category1, "Block")
-                .replace(identifier.category2, "Filesystem")
-                .replace(identifier.category3, "Partition")
+                line.replace(BlockDevices.category1, "Block")
+                .replace(BlockDevices.category2, "Filesystem")
+                .replace(BlockDevices.category3, "Partition")
                 .strip()
             )
         elif block and category:
@@ -242,22 +204,32 @@ def parse_block_devices(input_data: str) -> Dict[str, str]:
     return block_devices
 
 
-def smart_metrics(disk_lib: FilePath):
+def smart_metrics(disk_lib: FilePath) -> Generator[Disk]:
+    """Gathers smart metrics using udisksctl dump, and constructs a Disk object.
+
+    Args:
+        disk_lib: Path to the 'udisksctl' command.
+
+    Yields:
+        Disk:
+        Yields the Disk object from the generated Dataframe.
+    """
     smart_dump = get_smart_metrics(disk_lib)
-    block_devices = parse_block_devices(smart_dump)
-    # block_devices = dict(sorted(block_devices.items(), key=lambda item: item[1]['Drive']))
-    drives = parse_drives(smart_dump)
+    block_devices = dict(
+        sorted(
+            parse_block_devices(smart_dump).items(),
+            key=lambda device: device[1]["Drive"],
+        )
+    )
+    drives = {k: v for k, v in sorted(parse_drives(smart_dump).items())}
     assert len(block_devices) == len(drives)
-    for key, value in drives.items():
-        if matching_block_device := next(
-            (bd for bd in block_devices.values() if key == bd["Drive"]), None
-        ):
-            value["BlockDevice"] = matching_block_device
+    for (key, value), (_, block_device) in zip(drives.items(), block_devices.items()):
+        if key == block_device["Drive"]:
+            value["BlockDevice"] = block_device
         else:
             raise ValueError(
                 f"\n\n{key} not found in {[bd['Drive'] for bd in block_devices.values()]}"
             )
-        # Yield the result regardless of whether a match was found
         yield Disk(id=key, model=value.get("Info", {}).get("Model", ""), **value)
 
 
@@ -273,8 +245,6 @@ def monitor_disk(env: EnvConfig) -> Generator[Disk]:
     """
     message = ""
     for disk in smart_metrics(env.disk_lib):
-        print(disk)
-        continue
         for metric in env.metrics:
             attribute = disk.Attributes.model_dump().get(metric.attribute)
             if metric.max_threshold and attribute >= metric.max_threshold:
@@ -314,7 +284,10 @@ def generate_html(
         loader=jinja2.FileSystemLoader(template_dir)
     )  # Adjust path as needed
     template = env.get_template("template.html")
-    html_output = template.render(data=data)
+    now = datetime.now()
+    html_output = template.render(
+        data=data, last_updated=f"{now.strftime('%c')} {now.astimezone().tzinfo}"
+    )
     with open(filepath, "w") as file:
         file.write(html_output)
         file.flush()
@@ -333,21 +306,22 @@ def monitor(**kwargs) -> None:
     disk_report = [disk.model_dump() for disk in monitor_disk(env)]
     if disk_report:
         LOGGER.info(
-            "Disk monitor reporthas been generated for %d disks", len(disk_report)
+            "Disk monitor report has been generated for %d disks", len(disk_report)
         )
         if env.disk_report:
+            os.makedirs(env.report_dir, exist_ok=True)
+            report_file = datetime.now().strftime(
+                os.path.join(env.report_dir, "disk_report_%m-%d-%Y.html")
+            )
+            report_data = generate_html(disk_report, report_file)
             if env.gmail_user and env.gmail_pass and env.recipient:
                 LOGGER.info("Sending an email disk report to %s", env.recipient)
-                os.makedirs(env.report_dir, exist_ok=True)
-                report_file = datetime.now().strftime(
-                    os.path.join(env.report_dir, "disk_report_%m-%d-%Y.html")
-                )
                 send_report(
                     title=f"Disk Report - {datetime.now().strftime('%c')}",
                     user=env.gmail_user,
                     password=env.gmail_pass,
                     recipient=env.recipient,
-                    content=generate_html(disk_report, report_file),
+                    content=report_data,
                 )
             else:
                 LOGGER.warning(

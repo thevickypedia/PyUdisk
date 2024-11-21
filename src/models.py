@@ -1,17 +1,65 @@
 import json
-from typing import Optional, List
 from enum import StrEnum
+from typing import List, Optional
 
-from pydantic import BaseModel, field_validator, DirectoryPath
+from pydantic import BaseModel, DirectoryPath, field_validator
+
+
+class Partitions:
+    """System partitions."""
+
+    system_mountpoints: List[str] = [
+        "/sys",
+        "/proc",
+        "/dev",
+        "/run",
+        "/boot",
+        "/tmp",
+        "/var",
+        "/snap",
+        "/sys/kernel",
+        "/sys/fs",
+        "/var/lib/docker",
+        "/dev/loop",
+        "/run/user",
+        "/run/snapd",
+    ]
+    system_fstypes: List[str] = [
+        "sysfs",
+        "proc",
+        "devtmpfs",
+        "tmpfs",
+        "devpts",
+        "fusectl",
+        "securityfs",
+        "overlay",
+        "hugetlbfs",
+        "debugfs",
+        "cgroup2",
+        "configfs",
+        "bpf",
+        "binfmt_misc",
+        "efivarfs",
+        "fuse",
+        "nsfs",
+        "squashfs",
+        "autofs",
+        "tracefs",
+        "pstore",
+    ]
 
 
 class Drives(StrEnum):
+    """Identifiers for drives."""
+
     head: str = "/org/freedesktop/UDisks2/drives/"
     category1: str = "org.freedesktop.UDisks2.Drive:"
     category2: str = "org.freedesktop.UDisks2.Drive.Ata:"
 
 
-class Partitions(StrEnum):
+class BlockDevices(StrEnum):
+    """Identifiers for block devices."""
+
     head: str = "/org/freedesktop/UDisks2/block_devices/"
     category1: str = "org.freedesktop.UDisks2.Block:"
     category2: str = "org.freedesktop.UDisks2.Filesystem:"
