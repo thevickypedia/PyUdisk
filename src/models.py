@@ -1,7 +1,38 @@
 import json
-from typing import Optional
+from typing import Optional, List
+from enum import StrEnum
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, DirectoryPath
+
+
+class Drives(StrEnum):
+    head: str = "/org/freedesktop/UDisks2/drives/"
+    category1: str = "org.freedesktop.UDisks2.Drive:"
+    category2: str = "org.freedesktop.UDisks2.Drive.Ata:"
+
+
+class Partitions(StrEnum):
+    head: str = "/org/freedesktop/UDisks2/block_devices/"
+    category1: str = "org.freedesktop.UDisks2.Block:"
+    category2: str = "org.freedesktop.UDisks2.Filesystem:"
+    category3: str = "org.freedesktop.UDisks2.Partition:"
+
+
+class BlockDevice(BaseModel):
+    """Block device configuration."""
+
+    Device: str
+    DeviceNumber: int
+    Drive: str
+    Id: str
+    IdLabel: str
+    IdType: str
+    IdUUID: str
+    IdUsage: str
+    ReadOnly: bool
+    Size: int
+    MountPoints: DirectoryPath
+    Symlinks: List[str]
 
 
 class Info(BaseModel):
@@ -98,3 +129,4 @@ class Disk(BaseModel):
     model: str
     Info: Info
     Attributes: Attributes
+    BlockDevice: BlockDevice

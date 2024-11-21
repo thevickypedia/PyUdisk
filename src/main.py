@@ -13,7 +13,7 @@ from pydantic import FilePath, NewPath
 
 from .config import EnvConfig
 from .logger import LOGGER
-from .models import Disk
+from .models import Disk, Drives, Partitions
 from .notification import notification_service, send_report
 
 
@@ -39,28 +39,57 @@ def get_disk():
     """Gathers disk information using the 'psutil' library."""
     dry_run = os.environ.get("DRY_RUN", "false") == "true"
     if dry_run:
-        partitions = load_partitions(filename=os.environ.get("PARTITIONS", "partitions.json"))
+        partitions = load_partitions(
+            filename=os.environ.get("PARTITIONS", "partitions.json")
+        )
     else:
         partitions = psutil.disk_partitions()
     system_mountpoints = [
-        '/sys', '/proc', '/dev', '/run', '/boot', '/tmp', '/var', '/snap',
-        '/sys/kernel', '/sys/fs', '/var/lib/docker', '/dev/loop', '/run/user', '/run/snapd'
+        "/sys",
+        "/proc",
+        "/dev",
+        "/run",
+        "/boot",
+        "/tmp",
+        "/var",
+        "/snap",
+        "/sys/kernel",
+        "/sys/fs",
+        "/var/lib/docker",
+        "/dev/loop",
+        "/run/user",
+        "/run/snapd",
     ]
     system_fstypes = [
-        'sysfs', 'proc', 'devtmpfs', 'tmpfs', 'devpts', 'fusectl', 'securityfs',
-        'overlay', 'hugetlbfs', 'debugfs', 'cgroup2', 'configfs', 'bpf', 'binfmt_misc',
-        'efivarfs', 'fuse', 'nsfs', 'squashfs', 'autofs', 'tracefs', 'pstore'
+        "sysfs",
+        "proc",
+        "devtmpfs",
+        "tmpfs",
+        "devpts",
+        "fusectl",
+        "securityfs",
+        "overlay",
+        "hugetlbfs",
+        "debugfs",
+        "cgroup2",
+        "configfs",
+        "bpf",
+        "binfmt_misc",
+        "efivarfs",
+        "fuse",
+        "nsfs",
+        "squashfs",
+        "autofs",
+        "tracefs",
+        "pstore",
     ]
     # Filter out system partitions
-    filtered_partitions = [
-        part for part in partitions
-        if not any(part.mountpoint.startswith(mnt) for mnt in system_mountpoints)
-           and part.fstype not in system_fstypes
-    ]
-    # todo: Add results to the final output attributes and info as model
-    for partition in filtered_partitions:
-        print(partition.mountpoint)
-        print(psutil.disk_usage(partition.mountpoint))
+    for partition in partitions:
+        if (
+            not any(partition.mountpoint.startswith(mnt) for mnt in system_mountpoints)
+            and partition.fstype not in system_fstypes
+        ):
+            yield partition
 
 
 def load_dump(filename: str) -> str:
@@ -77,15 +106,15 @@ def load_dump(filename: str) -> str:
         return file.read()
 
 
-def disk_info(disk_lib: FilePath) -> Generator[Disk]:
+def get_smart_metrics(disk_lib: FilePath) -> str:
     """Gathers disk information using the dump from 'udisksctl' command.
 
     Args:
         disk_lib: Path to the 'udisksctl' command.
 
-    Yields:
-        Disk:
-        Data structure parsed as a Disk object.
+    Returns:
+        str:
+        Returns the output from disk util dump.
     """
     dry_run = os.environ.get("DRY_RUN", "false") == "true"
     if dry_run:
@@ -97,20 +126,31 @@ def disk_info(disk_lib: FilePath) -> Generator[Disk]:
             LOGGER.error(error)
             return
         text = output.decode(encoding="UTF-8")
+    return text
+
+
+def parse_drives(input_data: str) -> Dict[str, str]:
+    """Parses drivers' information from the dump into a datastructure.
+
+    Args:
+        input_data: Smart metrics dump.
+
+    Returns:
+        Dict[str, str]:
+        Returns a dictionary of drives' metrics as key-value pairs.
+    """
+    identifier = Drives
     formatted = {}
     head = None
     category = None
-    head_check = "/org/freedesktop/UDisks2/drives/"
-    cat1_check = "org.freedesktop.UDisks2.Drive:"
-    cat2_check = "org.freedesktop.UDisks2.Drive.Ata:"
-    for line in text.splitlines():
-        if line.startswith(head_check):
-            head = line.replace(head_check, "").strip()
+    for line in input_data.splitlines():
+        if line.startswith(identifier.head):
+            head = line.replace(identifier.head, "").rstrip(":").strip()
             formatted[head] = {}
-        elif line.strip() in (cat1_check, cat2_check):
+        elif line.strip() in (identifier.category1, identifier.category2):
             category = (
-                line.replace(cat1_check, "Info")
-                .replace(cat2_check, "Attributes")
+                line.replace(identifier.category1, "Info")
+                .replace(identifier.category2, "Attributes")
                 .strip()
             )
             formatted[head][category] = {}
@@ -125,7 +165,99 @@ def disk_info(disk_lib: FilePath) -> Generator[Disk]:
                 ), error
                 continue
             formatted[head][category][key] = val
-    for key, value in formatted.items():
+    return formatted
+
+
+def parse_block_devices(input_data: str) -> Dict[str, str]:
+    """Parses block_devices' information from the dump into a datastructure.
+
+    Args:
+        input_data: Smart metrics dump.
+
+    Returns:
+        Dict[str, str]:
+        Returns a dictionary of block_devices' metrics as key-value pairs.
+    """
+    identifier = Partitions
+    block_devices = {}
+    block = None
+    category = None
+    block_partitions = [
+        f"{identifier.head}{block_device.device.split('/')[-1]}:"
+        for block_device in get_disk()
+    ]
+    for line in input_data.splitlines():
+        if line in block_partitions:
+            block = line.replace(identifier.head, "").rstrip(":").strip()
+            block_devices[block] = {}
+        elif block and line.strip() in (
+            identifier.category1,
+            identifier.category2,
+            identifier.category3,
+        ):
+            category = (
+                line.replace(identifier.category1, "Block")
+                .replace(identifier.category2, "Filesystem")
+                .replace(identifier.category3, "Partition")
+                .strip()
+            )
+        elif block and category:
+            try:
+                key, val = line.strip().split(":", 1)
+                key = key.strip()
+                val = val.strip()
+                if key == "Drive":
+                    val = eval(val).replace(Drives.head, "")
+                if key == "Symlinks":
+                    block_devices[block][key] = [val]
+            except ValueError as error:
+                if block_devices[block].get("Symlinks") and line.strip():
+                    block_devices[block]["Symlinks"].append(line.strip())
+                assert (
+                    str(error) == "not enough values to unpack (expected 2, got 1)"
+                ), error
+                continue
+            if (
+                # This will ensure that new data is not written to old key
+                not block_devices[block].get(key)
+                # 'org.freedesktop.UDisks2.Partition' records are skipped
+                and category in ("Block", "Filesystem")
+                # Only store keys that provide value
+                and key
+                in (
+                    "Device",
+                    "DeviceNumber",
+                    "Drive",
+                    "Id",
+                    "IdLabel",
+                    "IdType",
+                    "IdUUID",
+                    "IdUsage",
+                    "ReadOnly",
+                    "Size",
+                    "MountPoints",
+                )
+            ):
+                block_devices[block][key] = val
+    return block_devices
+
+
+def smart_metrics(disk_lib: FilePath):
+    smart_dump = get_smart_metrics(disk_lib)
+    block_devices = parse_block_devices(smart_dump)
+    # block_devices = dict(sorted(block_devices.items(), key=lambda item: item[1]['Drive']))
+    drives = parse_drives(smart_dump)
+    assert len(block_devices) == len(drives)
+    for key, value in drives.items():
+        if matching_block_device := next(
+            (bd for bd in block_devices.values() if key == bd["Drive"]), None
+        ):
+            value["BlockDevice"] = matching_block_device
+        else:
+            raise ValueError(
+                f"\n\n{key} not found in {[bd['Drive'] for bd in block_devices.values()]}"
+            )
+        # Yield the result regardless of whether a match was found
         yield Disk(id=key, model=value.get("Info", {}).get("Model", ""), **value)
 
 
@@ -140,7 +272,9 @@ def monitor_disk(env: EnvConfig) -> Generator[Disk]:
         Data structure parsed as a Disk object.
     """
     message = ""
-    for disk in disk_info(env.disk_lib):
+    for disk in smart_metrics(env.disk_lib):
+        print(disk)
+        continue
         for metric in env.metrics:
             attribute = disk.Attributes.model_dump().get(metric.attribute)
             if metric.max_threshold and attribute >= metric.max_threshold:
