@@ -1,0 +1,46 @@
+[project]
+name = "PyUdisk"
+dynamic = ["version", "dependencies"]
+description = "Extensive disk monitor for Linux OS"
+readme = "README.md"
+authors = [{ name = "Vignesh Rao", email = "svignesh1793@gmail.com" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: System :: Monitoring",
+]
+keywords = ["disk-monitor", "PyUdisk"]
+requires-python = ">=3.10"
+
+[tool.setuptools]
+packages = [
+    "pyudisk",
+    "pyudisk.templates"
+]
+[tool.setuptools.package-data]
+"pyudisk.templates" = ["*.html"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pyudisk.version"}
+dependencies = { file = ["requirements.txt"] }
+
+[project.optional-dependencies]
+dev = ["sphinx==5.1.1", "pre-commit", "recommonmark", "gitverse"]
+
+[project.scripts]
+# sends all the args to commandline function, where the arbitary commands as processed accordingly
+pyudisk = "pyudisk:commandline"
+
+[build-system]
+requires      = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.urls]
+Homepage = "https://github.com/thevickypedia/PyUdisk"
+Docs = "https://thevickypedia.github.io/PyUdisk"
+Source = "https://github.com/thevickypedia/PyUdisk"
+"Bug Tracker" = "https://github.com/thevickypedia/PyUdisk/issues"
+"Release Notes" = "https://github.com/thevickypedia/PyUdisk/blob/main/release_notes.rst"
