@@ -140,3 +140,4 @@ class EnvConfig(BaseSettings):
         """Pydantic model configuration."""
 
         env_file = os.environ.get("env_file") or os.environ.get("ENV_FILE") or ".env"
+        extra = "ignore"

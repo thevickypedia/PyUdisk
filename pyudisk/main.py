@@ -256,7 +256,7 @@ def generate_html(
         str:
         Rendered HTML report.
     """
-    template_dir = pathlib.Path(__file__).parent
+    template_dir = os.path.join(pathlib.Path(__file__).parent, "templates")
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
     template = env.get_template("template.html")
     now = datetime.now()
@@ -269,14 +269,41 @@ def generate_html(
     return html_output
 
 
+def get_report(**kwargs) -> str:
+    """Generates the HTML report using UDisk lib.
+
+    Args:
+        **kwargs: Arbitrary keyword arguments.
+
+    Returns:
+        str:
+        Returns the report filepath.
+    """
+    env = EnvConfig(**kwargs)
+    if report_file := kwargs.get("filepath"):
+        assert report_file.endswith(".html"), "\n\tReport filename should have the suffix '.html'"
+        report_dir = str(pathlib.Path(report_file).parent)
+        assert os.path.isdir(report_dir), f"\n\tReport file's parent path {report_dir!r} does not exist!"
+    else:
+        if directory := kwargs.get("directory"):
+            assert os.path.isdir(directory), f"\n\tReport directory {directory!r} does not exist!!"
+            env.report_dir = directory
+        report_file = datetime.now().strftime(
+            os.path.join(env.report_dir, "disk_report_%m-%d-%Y.html")
+        )
+    LOGGER.info("Generating disk report")
+    disk_report = [disk.model_dump() for disk in monitor_disk(env)]
+    generate_html(disk_report, report_file)
+    LOGGER.info("Report has been stored in %s", report_file)
+    return report_file
+
+
 def monitor(**kwargs) -> None:
     """Entrypoint for the disk monitoring service.
 
     Args:
         **kwargs: Arbitrary keyword arguments.
     """
-    # todo:
-    #   use pyrpoject.toml and click to onboard a CLI tool -> upload to pypi
     env = EnvConfig(**kwargs)
     disk_report = [disk.model_dump() for disk in monitor_disk(env)]
     if disk_report:

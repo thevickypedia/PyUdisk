@@ -5,6 +5,11 @@ temp.py
 __pycache__/
 report/
 
+# Packaging
+build
+dist
+PyUdisk.egg-info
+
 # Sample files
 dump.txt
 partitions.json

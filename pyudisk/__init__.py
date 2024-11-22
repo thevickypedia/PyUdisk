@@ -5,9 +5,10 @@ import sys
 
 import click
 
-from .main import monitor
+from .main import monitor, get_report
 
 version = "0.0.0-pre"
+
 
 @click.command()
 @click.argument("start", required=False)
@@ -29,14 +30,14 @@ def commandline(*args, **kwargs) -> None:
         - ``--env | -E``: Environment configuration filepath.
 
     **Commands**
-        ``start | run``: Initiates the backup process.
+        ``start | run``: Initiates the monitoring/reporting process.
     """
     assert sys.argv[0].lower().endswith("pyudisk"), "Invalid commandline trigger!!"
     options = {
         "--version | -V": "Prints the version.",
         "--help | -H": "Prints the help section.",
         "--env | -E": "Environment configuration filepath.",
-        "start | run": "Initiates the backup process.",
+        "start | run": "Initiates the monitoring/reporting process.",
     }
     # weird way to increase spacing to keep all values monotonic
     _longest_key = len(max(options.keys()))
@@ -46,7 +47,7 @@ def commandline(*args, **kwargs) -> None:
         for k, v in options.items()
     )
     if kwargs.get("version"):
-        click.echo(f"PyUdisk {version.__version__}")
+        click.echo(f"PyUdisk {version}")
         sys.exit(0)
     if kwargs.get("help"):
         click.echo(
