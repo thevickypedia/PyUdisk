@@ -13,7 +13,7 @@ from pydantic import FilePath, NewPath
 
 from .config import EnvConfig
 from .logger import LOGGER
-from .models import BlockDevices, Disk, Drives, Partitions
+from .models import BlockDevices, Disk, Drives, SystemPartitions
 from .notification import notification_service, send_report
 
 
@@ -35,8 +35,13 @@ def load_partitions(filename: str) -> Generator[sdiskpart]:
         yield sdiskpart(**result_dict)
 
 
-def get_disk():
-    """Gathers disk information using the 'psutil' library."""
+def get_disk() -> Generator[sdiskpart]:
+    """Gathers disk information using the 'psutil' library.
+
+    Yields:
+        sdiskpart:
+        Yields the partition datastructure.
+    """
     dry_run = os.environ.get("DRY_RUN", "false") == "true"
     if dry_run:
         partitions = load_partitions(
@@ -44,14 +49,14 @@ def get_disk():
         )
     else:
         partitions = psutil.disk_partitions()
-    # Filter out system partitions
+    system_partitions = SystemPartitions()
     for partition in partitions:
         if (
             not any(
                 partition.mountpoint.startswith(mnt)
-                for mnt in Partitions.system_mountpoints
+                for mnt in system_partitions.system_mountpoints
             )
-            and partition.fstype not in Partitions.system_fstypes
+            and partition.fstype not in system_partitions.system_fstypes
         ):
             yield partition
 
@@ -131,26 +136,27 @@ def parse_drives(input_data: str) -> Dict[str, str]:
     return formatted
 
 
-def parse_block_devices(input_data: str) -> Dict[str, str]:
+def parse_block_devices(input_data: str) -> Dict[sdiskpart, str]:
     """Parses block_devices' information from the dump into a datastructure.
 
     Args:
         input_data: Smart metrics dump.
 
     Returns:
-        Dict[str, str]:
+        Dict[sdiskpart, str]:
         Returns a dictionary of block_devices' metrics as key-value pairs.
     """
     block_devices = {}
     block = None
     category = None
-    block_partitions = [
-        f"{BlockDevices.head}{block_device.device.split('/')[-1]}:"
+    block_partitions = {
+        f"{BlockDevices.head}{block_device.device.split('/')[-1]}:": block_device
         for block_device in get_disk()
-    ]
+    }
     for line in input_data.splitlines():
-        if line in block_partitions:
-            block = line.replace(BlockDevices.head, "").rstrip(":").strip()
+        if matching_block := block_partitions.get(line):
+            # Assing a temp value to avoid skipping loop when 'block' has a value
+            block = matching_block
             block_devices[block] = {}
         elif block and line.strip() in (
             BlockDevices.category1,
@@ -223,14 +229,20 @@ def smart_metrics(disk_lib: FilePath) -> Generator[Disk]:
     )
     drives = {k: v for k, v in sorted(parse_drives(smart_dump).items())}
     assert len(block_devices) == len(drives)
-    for (key, value), (_, block_device) in zip(drives.items(), block_devices.items()):
-        if key == block_device["Drive"]:
-            value["BlockDevice"] = block_device
+    for (drive, data), (partition, block_data) in zip(
+        drives.items(), block_devices.items()
+    ):
+        if drive == block_data["Drive"]:
+            data["BlockDevice"] = block_data
         else:
             raise ValueError(
-                f"\n\n{key} not found in {[bd['Drive'] for bd in block_devices.values()]}"
+                f"\n\n{drive} not found in {[bd['Drive'] for bd in block_devices.values()]}"
             )
-        yield Disk(id=key, model=value.get("Info", {}).get("Model", ""), **value)
+        # todo: merge BlockDevice object into Partition
+        data["Partition"] = partition._asdict()
+        # todo: Convert usage to human-readable metrics from bytes
+        data["Usage"] = psutil.disk_usage(partition.mountpoint)._asdict()
+        yield Disk(id=drive, model=data.get("Info", {}).get("Model", ""), **data)
 
 
 def monitor_disk(env: EnvConfig) -> Generator[Disk]:
@@ -280,9 +292,7 @@ def generate_html(
         Rendered HTML report.
     """
     template_dir = pathlib.Path(__file__).parent
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(template_dir)
-    )  # Adjust path as needed
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
     template = env.get_template("template.html")
     now = datetime.now()
     html_output = template.render(

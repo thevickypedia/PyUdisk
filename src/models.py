@@ -4,9 +4,37 @@ from typing import List, Optional
 
 from pydantic import BaseModel, DirectoryPath, field_validator
 
+# class Usage(BaseModel):
+#     total: str
+#     total_raw: int
+#     used: str
+#     used_raw: int
+#     free: str
+#     free_raw: int
+#     percent: float
 
-class Partitions:
-    """System partitions."""
+
+class Usage(BaseModel):
+    """Disk partition's usage information."""
+
+    total: int | float
+    used: int | float
+    free: int | float
+    percent: float
+
+
+class Parition(BaseModel):
+    """Disk partitions' infomration."""
+
+    # todo: merge this along with BlockDevice (rename that to partition)
+    device: str
+    mountpoint: str
+    fstype: str
+    opts: str
+
+
+class SystemPartitions(BaseModel):
+    """System partitions' mountpoints and fstypes."""
 
     system_mountpoints: List[str] = [
         "/sys",
@@ -178,3 +206,5 @@ class Disk(BaseModel):
     Info: Info
     Attributes: Attributes
     BlockDevice: BlockDevice
+    Partition: Parition
+    Usage: Usage

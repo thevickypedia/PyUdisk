@@ -127,6 +127,54 @@
                     <p>No block devices available.</p>
                 {% endif %}
             </div>
+
+            <div>
+                <h2>Partition</h2>
+                {% if row.Partition %}
+                    <table class="nested-table">
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, value in row.Partition.items() %}
+                                <tr>
+                                    <td>{{ key }}</td>
+                                    <td>{{ value }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No partitions available.</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <h2>Usage</h2>
+                {% if row.Usage %}
+                    <table class="nested-table">
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, value in row.Usage.items() %}
+                                <tr>
+                                    <td>{{ key }}</td>
+                                    <td>{{ value }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No usage metrics available.</p>
+                {% endif %}
+            </div>
         </details>
     {% endfor %}
 </body>
