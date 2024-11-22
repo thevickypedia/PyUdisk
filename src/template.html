@@ -105,30 +105,6 @@
             </div>
 
             <div>
-                <h2>BlockDevice</h2>
-                {% if row.BlockDevice %}
-                    <table class="nested-table">
-                        <thead>
-                            <tr>
-                                <th>Key</th>
-                                <th>Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for key, value in row.BlockDevice.items() %}
-                                <tr>
-                                    <td>{{ key }}</td>
-                                    <td>{{ value }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                {% else %}
-                    <p>No block devices available.</p>
-                {% endif %}
-            </div>
-
-            <div>
                 <h2>Partition</h2>
                 {% if row.Partition %}
                     <table class="nested-table">

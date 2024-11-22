@@ -1,4 +1,3 @@
-import json
 import os
 import pathlib
 import subprocess
@@ -15,24 +14,7 @@ from .config import EnvConfig
 from .logger import LOGGER
 from .models import BlockDevices, Disk, Drives, SystemPartitions
 from .notification import notification_service, send_report
-
-
-def load_partitions(filename: str) -> Generator[sdiskpart]:
-    """Loads disk partitions from a JSON file.
-
-    Args:
-        filename: Source file to load partitions from.
-
-    Yields:
-        sdiskpart:
-        Disk partition data structure.
-    """
-    with open(filename) as file:
-        partitions = json.load(file)
-    keys = list(sdiskpart._fields)
-    for partition in partitions:
-        result_dict = dict(zip(keys, partition))
-        yield sdiskpart(**result_dict)
+from .support import humanize_usage_metrics, load_dump, load_partitions
 
 
 def get_disk() -> Generator[sdiskpart]:
@@ -59,20 +41,6 @@ def get_disk() -> Generator[sdiskpart]:
             and partition.fstype not in system_partitions.system_fstypes
         ):
             yield partition
-
-
-def load_dump(filename: str) -> str:
-    """Loads a dump file for testing purposes.
-
-    Args:
-        filename: Dump file to load.
-
-    Returns:
-        str:
-        Content of the dump file.
-    """
-    with open(filename) as file:
-        return file.read()
 
 
 def get_smart_metrics(disk_lib: FilePath) -> str:
@@ -233,15 +201,12 @@ def smart_metrics(disk_lib: FilePath) -> Generator[Disk]:
         drives.items(), block_devices.items()
     ):
         if drive == block_data["Drive"]:
-            data["BlockDevice"] = block_data
+            data["Partition"] = block_data
         else:
             raise ValueError(
                 f"\n\n{drive} not found in {[bd['Drive'] for bd in block_devices.values()]}"
             )
-        # todo: merge BlockDevice object into Partition
-        data["Partition"] = partition._asdict()
-        # todo: Convert usage to human-readable metrics from bytes
-        data["Usage"] = psutil.disk_usage(partition.mountpoint)._asdict()
+        data["Usage"] = humanize_usage_metrics(psutil.disk_usage(partition.mountpoint))
         yield Disk(id=drive, model=data.get("Info", {}).get("Model", ""), **data)
 
 
