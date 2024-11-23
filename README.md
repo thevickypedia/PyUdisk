@@ -1,2 +1,3 @@
-# Disk Monitor (Linux)
-Get SMART analysis for connected disks
+# PyUdisk (Linux)
+
+PyUdisk is a wrapper around the `udisksctl` command-line tool.
