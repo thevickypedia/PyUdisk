@@ -1,7 +1,7 @@
 import os
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, DirectoryPath, FilePath, HttpUrl, field_validator
+from pydantic import BaseModel, DirectoryPath, Field, FilePath, HttpUrl, field_validator
 from pydantic_settings import BaseSettings
 
 from .models import Attributes
@@ -65,6 +65,7 @@ class EnvConfig(BaseSettings):
 
     disk_report: bool = True
     report_dir: str | DirectoryPath = "report"
+    report_file: str = Field("disk_report_%m-%d-%Y_%I:%M_%p.html", pattern=r".*\.html$")
 
     # noinspection PyMethodParameters
     @field_validator("disk_lib", mode="before")

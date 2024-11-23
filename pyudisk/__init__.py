@@ -5,7 +5,7 @@ import sys
 
 import click
 
-from .main import monitor, get_report
+from .main import get_report, monitor  # noqa: F401
 
 version = "0.0.0-pre"
 

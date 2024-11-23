@@ -281,15 +281,17 @@ def get_report(**kwargs) -> str:
     """
     env = EnvConfig(**kwargs)
     if report_file := kwargs.get("filepath"):
-        assert report_file.endswith(".html"), "\n\tReport filename should have the suffix '.html'"
+        assert report_file.endswith(
+            ".html"
+        ), "\n\tReport filename should have the suffix '.html'"
         report_dir = str(pathlib.Path(report_file).parent)
-        assert os.path.isdir(report_dir), f"\n\tReport file's parent path {report_dir!r} does not exist!"
+        os.makedirs(report_dir, exist_ok=True)
     else:
         if directory := kwargs.get("directory"):
-            assert os.path.isdir(directory), f"\n\tReport directory {directory!r} does not exist!!"
             env.report_dir = directory
+        os.makedirs(env.report_dir, exist_ok=True)
         report_file = datetime.now().strftime(
-            os.path.join(env.report_dir, "disk_report_%m-%d-%Y.html")
+            os.path.join(env.report_dir, env.report_file)
         )
     LOGGER.info("Generating disk report")
     disk_report = [disk.model_dump() for disk in monitor_disk(env)]
@@ -313,7 +315,7 @@ def monitor(**kwargs) -> None:
         if env.disk_report:
             os.makedirs(env.report_dir, exist_ok=True)
             report_file = datetime.now().strftime(
-                os.path.join(env.report_dir, "disk_report_%m-%d-%Y.html")
+                os.path.join(env.report_dir, env.report_file)
             )
             report_data = generate_html(disk_report, report_file)
             if env.gmail_user and env.gmail_pass and env.recipient:
