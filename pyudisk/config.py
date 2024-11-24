@@ -43,8 +43,12 @@ class EnvConfig(BaseSettings):
 
     """
 
+    dry_run: bool = False
+    sample_partitions: str = "partitions.json"
+    sample_dump: str = "dump.txt"
+
     disk_lib: FilePath = "/usr/bin/udisksctl"
-    metrics: Metric | List[Metric] = []
+    metrics: Metric | List[Metric] = Field(default_factory=list)
 
     # Email/SMS notifications
     gmail_user: Optional[str] = None

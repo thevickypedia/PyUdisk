@@ -3,12 +3,12 @@ import pathlib
 import subprocess
 from collections.abc import Generator
 from datetime import datetime
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import jinja2
 import psutil
 from psutil._common import sdiskpart
-from pydantic import FilePath, NewPath
+from pydantic import NewPath
 
 from .config import EnvConfig
 from .logger import LOGGER
@@ -17,18 +17,18 @@ from .notification import notification_service, send_report
 from .support import humanize_usage_metrics, load_dump, load_partitions
 
 
-def get_disk() -> Generator[sdiskpart]:
+def get_disk(env: EnvConfig) -> Generator[sdiskpart]:
     """Gathers disk information using the 'psutil' library.
+
+    Args:
+        env: Environment variables configuration.
 
     Yields:
         sdiskpart:
         Yields the partition datastructure.
     """
-    dry_run = os.environ.get("DRY_RUN", "false") == "true"
-    if dry_run:
-        partitions = load_partitions(
-            filename=os.environ.get("PARTITIONS", "partitions.json")
-        )
+    if env.dry_run:
+        partitions = load_partitions(filename=env.sample_partitions)
     else:
         partitions = psutil.disk_partitions()
     system_partitions = SystemPartitions()
@@ -43,30 +43,29 @@ def get_disk() -> Generator[sdiskpart]:
             yield partition
 
 
-def get_smart_metrics(disk_lib: FilePath) -> str:
+def get_smart_metrics(env: EnvConfig) -> str:
     """Gathers disk information using the dump from 'udisksctl' command.
 
     Args:
-        disk_lib: Path to the 'udisksctl' command.
+        env: Environment variables configuration.
 
     Returns:
         str:
         Returns the output from disk util dump.
     """
-    dry_run = os.environ.get("DRY_RUN", "false") == "true"
-    if dry_run:
-        text = load_dump(filename=os.environ.get("DUMP", "dump.txt"))
+    if env.dry_run:
+        text = load_dump(filename=env.sample_dump)
     else:
         try:
-            output = subprocess.check_output(f"{disk_lib} dump", shell=True)
+            output = subprocess.check_output(f"{env.disk_lib} dump", shell=True)
         except subprocess.CalledProcessError as error:
             LOGGER.error(error)
-            return
+            return ""
         text = output.decode(encoding="UTF-8")
     return text
 
 
-def parse_drives(input_data: str) -> Dict[str, str]:
+def parse_drives(input_data: str) -> Dict[str, Any]:
     """Parses drivers' information from the dump into a datastructure.
 
     Args:
@@ -104,10 +103,13 @@ def parse_drives(input_data: str) -> Dict[str, str]:
     return formatted
 
 
-def parse_block_devices(input_data: str) -> Dict[sdiskpart, str]:
+def parse_block_devices(
+    env: EnvConfig, input_data: str
+) -> Dict[sdiskpart, Dict[str, str]]:
     """Parses block_devices' information from the dump into a datastructure.
 
     Args:
+        env: Environment variables configuration.
         input_data: Smart metrics dump.
 
     Returns:
@@ -119,7 +121,7 @@ def parse_block_devices(input_data: str) -> Dict[sdiskpart, str]:
     category = None
     block_partitions = {
         f"{BlockDevices.head}{block_device.device.split('/')[-1]}:": block_device
-        for block_device in get_disk()
+        for block_device in get_disk(env)
     }
     for line in input_data.splitlines():
         if matching_block := block_partitions.get(line):
@@ -178,20 +180,20 @@ def parse_block_devices(input_data: str) -> Dict[sdiskpart, str]:
     return block_devices
 
 
-def smart_metrics(disk_lib: FilePath) -> Generator[Disk]:
+def smart_metrics(env: EnvConfig) -> Generator[Disk]:
     """Gathers smart metrics using udisksctl dump, and constructs a Disk object.
 
     Args:
-        disk_lib: Path to the 'udisksctl' command.
+        env: Environment variables configuration.
 
     Yields:
         Disk:
         Yields the Disk object from the generated Dataframe.
     """
-    smart_dump = get_smart_metrics(disk_lib)
+    smart_dump = get_smart_metrics(env)
     block_devices = dict(
         sorted(
-            parse_block_devices(smart_dump).items(),
+            parse_block_devices(env, smart_dump).items(),
             key=lambda device: device[1]["Drive"],
         )
     )
@@ -221,7 +223,7 @@ def monitor_disk(env: EnvConfig) -> Generator[Disk]:
         Data structure parsed as a Disk object.
     """
     message = ""
-    for disk in smart_metrics(env.disk_lib):
+    for disk in smart_metrics(env):
         for metric in env.metrics:
             attribute = disk.Attributes.model_dump().get(metric.attribute)
             if metric.max_threshold and attribute >= metric.max_threshold:
@@ -269,7 +271,7 @@ def generate_html(
     return html_output
 
 
-def get_report(**kwargs) -> str:
+def generate_report(**kwargs) -> str:
     """Generates the HTML report using UDisk lib.
 
     Args:
