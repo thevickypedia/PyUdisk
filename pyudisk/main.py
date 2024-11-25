@@ -246,7 +246,7 @@ def monitor_disk(env: EnvConfig) -> Generator[Disk]:
 
 
 def generate_html(
-    data: List[Dict[str, str | int | float | bool]], filepath: NewPath
+    data: List[Dict[str, str | int | float | bool]], filepath: NewPath = None
 ) -> str:
     """Generates an HTML report using Jinja2 template.
 
@@ -265,9 +265,10 @@ def generate_html(
     html_output = template.render(
         data=data, last_updated=f"{now.strftime('%c')} {now.astimezone().tzinfo}"
     )
-    with open(filepath, "w") as file:
-        file.write(html_output)
-        file.flush()
+    if filepath:
+        with open(filepath, "w") as file:
+            file.write(html_output)
+            file.flush()
     return html_output
 
 
@@ -282,6 +283,8 @@ def generate_report(**kwargs) -> str:
         Returns the report filepath.
     """
     env = EnvConfig(**kwargs)
+    if kwargs.get("raw"):
+        return generate_html([disk.model_dump() for disk in monitor_disk(env)])
     if report_file := kwargs.get("filepath"):
         assert report_file.endswith(
             ".html"
