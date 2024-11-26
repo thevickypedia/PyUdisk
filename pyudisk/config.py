@@ -47,7 +47,7 @@ class EnvConfig(BaseSettings):
     sample_partitions: str = "partitions.json"
     sample_dump: str = "dump.txt"
 
-    disk_lib: FilePath = "/usr/bin/udisksctl"
+    udisk_lib: FilePath = "/usr/bin/udisksctl"
     metrics: Metric | List[Metric] = Field(default_factory=list)
 
     # Email/SMS notifications
@@ -72,8 +72,8 @@ class EnvConfig(BaseSettings):
     report_file: str = Field("disk_report_%m-%d-%Y_%I:%M_%p.html", pattern=r".*\.html$")
 
     # noinspection PyMethodParameters
-    @field_validator("disk_lib", mode="before")
-    def validate_disk_lib(cls, value: str) -> str:
+    @field_validator("udisk_lib", mode="before")
+    def validate_udisk_lib(cls, value: str) -> str:
         """Validates the disk library path only when DRY_RUN is set to false."""
         if os.environ.get("DRY_RUN", "false") == "true":
             return __file__

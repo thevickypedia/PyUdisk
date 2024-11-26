@@ -40,7 +40,7 @@ pyudisk start
 > _By default, `PyUdisk` will look for a `.env` file in the current working directory._
 </details>
 
-- **DISK_LIB**: Path to the `udisksctl` command-line tool. Default: `/usr/bin/udisksctl`
+- **UDISK_LIB**: Path to the `udisksctl` command-line tool. Default: `/usr/bin/udisksctl`
 - **METRICS**: List of metrics to monitor. Default: `[]`
 - **GMAIL_USER**: Gmail username to authenticate SMTP library.
 - **GMAIL_PASS**: Gmail password to authenticate SMTP library.

@@ -57,7 +57,7 @@ def get_smart_metrics(env: EnvConfig) -> str:
         text = load_dump(filename=env.sample_dump)
     else:
         try:
-            output = subprocess.check_output(f"{env.disk_lib} dump", shell=True)
+            output = subprocess.check_output(f"{env.udisk_lib} dump", shell=True)
         except subprocess.CalledProcessError as error:
             LOGGER.error(error)
             return ""
