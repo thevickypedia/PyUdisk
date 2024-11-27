@@ -10,7 +10,13 @@ PyUdisk is a wrapper around the `udisksctl` command-line tool to generate a comp
 - Install `python` [3.10] or [3.11]
 - Use a dedicated [virtual environment]
 
-```bash
+For monitoring and reporting, use
+```shell
+pip install PyUdisk[standard]
+```
+
+For basic functionality, use
+```shell
 pip install PyUdisk
 ```
 

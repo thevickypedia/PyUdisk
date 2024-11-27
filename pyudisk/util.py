@@ -60,4 +60,4 @@ def size_converter(byte_size: int | float) -> str:
 
 def standard() -> NoReturn:
     """Raises environment error to install standard package."""
-    raise EnvironmentError("For full usage, run 'pip install PyUdisk[standard]'")
+    raise NotImplementedError("\n\tFor full usage, run 'pip install PyUdisk[standard]'")
