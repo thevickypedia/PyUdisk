@@ -63,7 +63,12 @@ class SystemPartitions(BaseModel):
 
 
 class Drives(StrEnum):
-    """Identifiers for drives."""
+    """Identifiers for drives.
+
+    See Also:
+        - https://storaged.org/doc/udisks2-api/latest/gdbus-org.freedesktop.UDisks2.Drive
+        - https://storaged.org/doc/udisks2-api/latest/gdbus-org.freedesktop.UDisks2.Drive.Ata
+    """
 
     head: str = "/org/freedesktop/UDisks2/drives/"
     category1: str = "org.freedesktop.UDisks2.Drive:"
@@ -71,7 +76,13 @@ class Drives(StrEnum):
 
 
 class BlockDevices(StrEnum):
-    """Identifiers for block devices."""
+    """Identifiers for block devices.
+
+    See Also:
+        - https://storaged.org/doc/udisks2-api/latest/gdbus-org.freedesktop.UDisks2.Block
+        - https://storaged.org/doc/udisks2-api/latest/gdbus-org.freedesktop.UDisks2.Filesystem
+        - https://storaged.org/doc/udisks2-api/latest/gdbus-org.freedesktop.UDisks2.Partition
+    """
 
     head: str = "/org/freedesktop/UDisks2/block_devices/"
     category1: str = "org.freedesktop.UDisks2.Block:"

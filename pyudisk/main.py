@@ -3,9 +3,8 @@ import pathlib
 import subprocess
 from collections.abc import Generator
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, NoReturn
 
-import jinja2
 import psutil
 from psutil._common import sdiskpart
 from pydantic import NewPath
@@ -15,6 +14,7 @@ from .logger import LOGGER
 from .models import BlockDevices, Disk, Drives, SystemPartitions
 from .notification import notification_service, send_report
 from .support import humanize_usage_metrics, load_dump, load_partitions
+from .util import standard
 
 
 def get_disk(env: EnvConfig) -> Generator[sdiskpart]:
@@ -247,7 +247,7 @@ def monitor_disk(env: EnvConfig) -> Generator[Disk]:
 
 def generate_html(
     data: List[Dict[str, str | int | float | bool]], filepath: NewPath = None
-) -> str:
+) -> str | NoReturn:
     """Generates an HTML report using Jinja2 template.
 
     Args:
@@ -258,6 +258,11 @@ def generate_html(
         str:
         Rendered HTML report.
     """
+    try:
+        import jinja2
+    except ModuleNotFoundError:
+        standard()
+
     template_dir = os.path.join(pathlib.Path(__file__).parent, "templates")
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
     template = env.get_template("template.html")

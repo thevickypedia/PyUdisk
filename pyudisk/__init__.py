@@ -5,7 +5,7 @@ import sys
 
 import click
 
-from .main import generate_report, monitor, smart_metrics  # noqa: F401
+from .main import EnvConfig, generate_report, monitor, smart_metrics  # noqa: F401
 
 version = "0.0.3"
 

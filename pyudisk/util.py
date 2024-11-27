@@ -1,4 +1,10 @@
 import math
+from typing import NoReturn
+
+k2c = lambda k: kelvin_to_celsius(k)
+k2f = lambda k: kelvin_to_fahrenheit(k)
+f2k = lambda f: fahrenheit_to_kelvin(f)
+c2k = lambda c: celsius_to_kelvin(c)
 
 
 def kelvin_to_celsius(kelvin: int | float):
@@ -50,3 +56,8 @@ def size_converter(byte_size: int | float) -> str:
     size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
     index = int(math.floor(math.log(byte_size, 1024)))
     return f"{format_nos(round(byte_size / pow(1024, index), 2))} {size_name[index]}"
+
+
+def standard() -> NoReturn:
+    """Raises environment error to install standard package."""
+    raise EnvironmentError("For full usage, run 'pip install PyUdisk[standard]'")

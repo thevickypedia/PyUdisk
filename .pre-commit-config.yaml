@@ -43,7 +43,7 @@ repos:
         additional_dependencies:
           - flake8-docstrings
           - flake8-sfs
-        args: [ --max-line-length=120, --extend-ignore=SFS3 D107 SFS301 D100 D104 D401 SFS101 SFS201 D412 ]
+        args: [ --max-line-length=120, --extend-ignore=SFS3 D107 SFS301 D100 D104 D401 SFS101 SFS201 D412 E731 ]
 
   - repo: https://github.com/PyCQA/isort
     rev: 5.13.2

@@ -1,11 +1,9 @@
 from threading import Thread
 from typing import List
 
-import gmailconnector as gc
-import requests
-
 from .config import EnvConfig
 from .logger import LOGGER
+from .util import standard
 
 
 def urljoin(*args) -> str:
@@ -83,6 +81,11 @@ def send_report(
         recipient: Email recipient.
         content: HTML body to attach to the email.
     """
+    try:
+        import gmailconnector as gc
+    except ModuleNotFoundError:
+        standard()
+
     email_obj = gc.SendEmail(gmail_user=user, gmail_pass=password)
     response = email_obj.send_email(
         subject=title, recipient=recipient, html_body=content
@@ -104,6 +107,11 @@ def sms_fn(title: str, message: str, user: str, password: str, phone: str) -> No
         password: Gmail password.
         phone: Phone number to send the SMS.
     """
+    try:
+        import gmailconnector as gc
+    except ModuleNotFoundError:
+        standard()
+
     sms_obj = gc.SendSMS(gmail_user=user, gmail_pass=password)
     response = sms_obj.send_sms(phone=phone, message=message, subject=title)
     if response.ok:
@@ -131,6 +139,11 @@ def ntfy_fn(
         username: Ntfy service username.
         password: Ntfy service password.
     """
+    try:
+        import requests
+    except ModuleNotFoundError:
+        standard()
+
     session = requests.Session()
     if username and password:
         session.auth = (username, password)
@@ -168,6 +181,11 @@ def telegram_fn(
         message_thread_id: Message thread id.
         disable_notification: Boolean flag to disable notification.
     """
+    try:
+        import requests
+    except ModuleNotFoundError:
+        standard()
+
     text = f"*{title}*\n{message}"
     payload = {
         "chat_id": chat_id,
