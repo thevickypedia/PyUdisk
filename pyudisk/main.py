@@ -198,7 +198,28 @@ def smart_metrics(env: EnvConfig) -> Generator[Disk]:
         )
     )
     drives = {k: v for k, v in sorted(parse_drives(smart_dump).items())}
-    assert len(block_devices) == len(drives)
+    if len(block_devices) != len(drives):
+        LOGGER.warning(
+            f"Number of block devices [{len(block_devices)}] does not match the number of drives [{len(drives)}]"
+        )
+        device_names = set(v["Drive"] for v in block_devices.values())
+        drive_names = set(drives.keys())
+        diff = (
+            drive_names - device_names
+            if len(drive_names) > len(device_names)
+            else device_names - drive_names
+        )
+        LOGGER.warning("UNmounted drive(s) found - '%s'", ", ".join(diff))
+    optional_fields = [
+        k
+        for k, v in Disk.model_json_schema().get("properties").items()
+        if v.get("anyOf", [{}])[-1].get("type", "") == "null"
+    ]
+    # S.M.A.R.T metrics can be null, but the keys are mandatory
+    for drive in drives.values():
+        for key in optional_fields:
+            if key not in drive.keys():
+                drive[key] = None
     for (drive, data), (partition, block_data) in zip(
         drives.items(), block_devices.items()
     ):
@@ -224,20 +245,23 @@ def monitor_disk(env: EnvConfig) -> Generator[Disk]:
     """
     message = ""
     for disk in smart_metrics(env):
-        for metric in env.metrics:
-            attribute = disk.Attributes.model_dump().get(metric.attribute)
-            if metric.max_threshold and attribute >= metric.max_threshold:
-                msg = f"{metric.attribute!r} for {disk.id!r} is >= {metric.max_threshold} at {attribute}"
-                LOGGER.critical(msg)
-                message += msg + "\n"
-            if metric.min_threshold and attribute <= metric.min_threshold:
-                msg = f"{metric.attribute!r} for {disk.id!r} is <= {metric.min_threshold} at {attribute}"
-                LOGGER.critical(msg)
-                message += msg + "\n"
-            if metric.equal_match and attribute != metric.equal_match:
-                msg = f"{metric.attribute!r} for {disk.id!r} IS NOT {metric.equal_match} at {attribute}"
-                LOGGER.critical(msg)
-                message += msg + "\n"
+        if disk.Attributes:
+            for metric in env.metrics:
+                attribute = disk.Attributes.model_dump().get(metric.attribute)
+                if metric.max_threshold and attribute >= metric.max_threshold:
+                    msg = f"{metric.attribute!r} for {disk.id!r} is >= {metric.max_threshold} at {attribute}"
+                    LOGGER.critical(msg)
+                    message += msg + "\n"
+                if metric.min_threshold and attribute <= metric.min_threshold:
+                    msg = f"{metric.attribute!r} for {disk.id!r} is <= {metric.min_threshold} at {attribute}"
+                    LOGGER.critical(msg)
+                    message += msg + "\n"
+                if metric.equal_match and attribute != metric.equal_match:
+                    msg = f"{metric.attribute!r} for {disk.id!r} IS NOT {metric.equal_match} at {attribute}"
+                    LOGGER.critical(msg)
+                    message += msg + "\n"
+        else:
+            LOGGER.warning("No attributes were loaded for %s", disk.model)
         yield disk
     if message:
         notification_service(

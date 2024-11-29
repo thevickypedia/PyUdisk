@@ -199,7 +199,7 @@ class Disk(BaseModel):
 
     id: str
     model: str
-    Info: Info
-    Attributes: Attributes
-    Partition: Parition
-    Usage: Usage
+    Info: Optional[Info]
+    Attributes: Optional[Attributes]
+    Partition: Optional[Parition]
+    Usage: Optional[Usage]

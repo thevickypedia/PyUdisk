@@ -7,7 +7,7 @@ import click
 
 from .main import EnvConfig, generate_report, monitor, smart_metrics  # noqa: F401
 
-version = "0.1.0"
+version = "0.1.1"
 
 
 @click.command()
@@ -30,14 +30,16 @@ def commandline(*args, **kwargs) -> None:
         - ``--env | -E``: Environment configuration filepath.
 
     **Commands**
-        ``start | run``: Initiates the monitoring/reporting process.
+        - ``monitor``: Initiates the monitoring and alerting process.
+        - ``report``: Generates a full disk-report HTML.
     """
     assert sys.argv[0].lower().endswith("pyudisk"), "Invalid commandline trigger!!"
     options = {
         "--version | -V": "Prints the version.",
         "--help | -H": "Prints the help section.",
         "--env | -E": "Environment configuration filepath.",
-        "start | run": "Initiates the monitoring/reporting process.",
+        "monitor": "Initiates the monitoring and alerting process.",
+        "report": "Generates a full disk-report HTML",
     }
     # weird way to increase spacing to keep all values monotonic
     _longest_key = len(max(options.keys()))
