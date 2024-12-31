@@ -35,21 +35,21 @@ class BlockDevices(StrEnum):
     category3: str = "org.freedesktop.UDisks2.Partition:"
 
 
-class Parition(BaseModel):
+class Partition(BaseModel):
     """Disk partitions' infomration."""
 
-    Device: str
-    DeviceNumber: int
-    Drive: str
-    Id: str
-    IdLabel: str
-    IdType: str
-    IdUUID: str
-    IdUsage: str
-    ReadOnly: bool
-    Size: int
-    MountPoints: DirectoryPath
-    Symlinks: List[str]
+    Device: Optional[str] = None
+    DeviceNumber: Optional[int] = None
+    Drive: Optional[str] = None
+    Id: Optional[str] = None
+    IdLabel: Optional[str] = None
+    IdType: Optional[str] = None
+    IdUUID: Optional[str] = None
+    IdUsage: Optional[str] = None
+    ReadOnly: Optional[bool] = None
+    Size: Optional[int] = None
+    MountPoints: Optional[DirectoryPath] = None
+    Symlinks: Optional[List[str]] = None
 
 
 class Info(BaseModel):
@@ -59,35 +59,35 @@ class Info(BaseModel):
 
     """
 
-    CanPowerOff: Optional[bool]
-    Configuration: Optional[dict]
-    ConnectionBus: Optional[str]
-    Ejectable: Optional[bool]
-    Id: Optional[str]
-    Media: Optional[str]
-    MediaAvailable: Optional[bool]
-    MediaChangeDetected: Optional[bool]
-    MediaCompatibility: Optional[str]
-    MediaRemovable: Optional[bool]
-    Model: Optional[str]
-    Optical: Optional[bool]
-    OpticalBlank: Optional[bool]
-    OpticalNumAudioTracks: Optional[int]
-    OpticalNumDataTracks: Optional[int]
-    OpticalNumSessions: Optional[int]
-    OpticalNumTracks: Optional[int]
-    Removable: Optional[bool]
-    Revision: Optional[str]
-    RotationRate: Optional[int]
-    Seat: Optional[str]
-    Serial: Optional[str]
-    SiblingId: Optional[str]
-    Size: Optional[int]
-    SortKey: Optional[str]
-    TimeDetected: Optional[int]
-    TimeMediaDetected: Optional[int]
-    Vendor: Optional[str]
-    WWN: Optional[str]
+    CanPowerOff: Optional[bool] = None
+    Configuration: Optional[dict] = None
+    ConnectionBus: Optional[str] = None
+    Ejectable: Optional[bool] = None
+    Id: Optional[str] = None
+    Media: Optional[str] = None
+    MediaAvailable: Optional[bool] = None
+    MediaChangeDetected: Optional[bool] = None
+    MediaCompatibility: Optional[str] = None
+    MediaRemovable: Optional[bool] = None
+    Model: Optional[str] = None
+    Optical: Optional[bool] = None
+    OpticalBlank: Optional[bool] = None
+    OpticalNumAudioTracks: Optional[int] = None
+    OpticalNumDataTracks: Optional[int] = None
+    OpticalNumSessions: Optional[int] = None
+    OpticalNumTracks: Optional[int] = None
+    Removable: Optional[bool] = None
+    Revision: Optional[str] = None
+    RotationRate: Optional[int] = None
+    Seat: Optional[str] = None
+    Serial: Optional[str] = None
+    SiblingId: Optional[str] = None
+    Size: Optional[int] = None
+    SortKey: Optional[str] = None
+    TimeDetected: Optional[int] = None
+    TimeMediaDetected: Optional[int] = None
+    Vendor: Optional[str] = None
+    WWN: Optional[str] = None
 
     # noinspection PyMethodParameters
     @field_validator("Configuration", mode="before")
@@ -108,31 +108,31 @@ class Attributes(BaseModel):
 
     """
 
-    AamEnabled: Optional[bool]
-    AamSupported: Optional[bool]
-    AamVendorRecommendedValue: Optional[int]
-    ApmEnabled: Optional[bool]
-    ApmSupported: Optional[bool]
-    PmEnabled: Optional[bool]
-    PmSupported: Optional[bool]
-    ReadLookaheadEnabled: Optional[bool]
-    ReadLookaheadSupported: Optional[bool]
-    SecurityEnhancedEraseUnitMinutes: Optional[int]
-    SecurityEraseUnitMinutes: Optional[int]
-    SecurityFrozen: Optional[bool]
-    SmartEnabled: Optional[bool]
-    SmartFailing: Optional[bool]
-    SmartNumAttributesFailedInThePast: Optional[int]
-    SmartNumAttributesFailing: Optional[int]
-    SmartNumBadSectors: Optional[int]
-    SmartPowerOnSeconds: Optional[int]
-    SmartSelftestPercentRemaining: Optional[int]
-    SmartSelftestStatus: Optional[str]
-    SmartSupported: Optional[bool]
-    SmartTemperature: Optional[float]
-    SmartUpdated: Optional[int]
-    WriteCacheEnabled: Optional[bool]
-    WriteCacheSupported: Optional[bool]
+    AamEnabled: Optional[bool] = None
+    AamSupported: Optional[bool] = None
+    AamVendorRecommendedValue: Optional[int] = None
+    ApmEnabled: Optional[bool] = None
+    ApmSupported: Optional[bool] = None
+    PmEnabled: Optional[bool] = None
+    PmSupported: Optional[bool] = None
+    ReadLookaheadEnabled: Optional[bool] = None
+    ReadLookaheadSupported: Optional[bool] = None
+    SecurityEnhancedEraseUnitMinutes: Optional[int] = None
+    SecurityEraseUnitMinutes: Optional[int] = None
+    SecurityFrozen: Optional[bool] = None
+    SmartEnabled: Optional[bool] = None
+    SmartFailing: Optional[bool] = None
+    SmartNumAttributesFailedInThePast: Optional[int] = None
+    SmartNumAttributesFailing: Optional[int] = None
+    SmartNumBadSectors: Optional[int] = None
+    SmartPowerOnSeconds: Optional[int] = None
+    SmartSelftestPercentRemaining: Optional[int] = None
+    SmartSelftestStatus: Optional[str] = None
+    SmartSupported: Optional[bool] = None
+    SmartTemperature: Optional[float] = None
+    SmartUpdated: Optional[int] = None
+    WriteCacheEnabled: Optional[bool] = None
+    WriteCacheSupported: Optional[bool] = None
 
 
 class Disk(BaseModel):
@@ -146,5 +146,5 @@ class Disk(BaseModel):
     model: str
     Info: Optional[Info]
     Attributes: Optional[Attributes]
-    Partition: Optional[Parition]
+    Partition: Optional[Partition]
     Usage: Optional[Usage]

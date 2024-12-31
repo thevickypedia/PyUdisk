@@ -10,7 +10,7 @@ import psutil
 from psutil._common import sdiskpart
 from pydantic import FilePath, NewPath, ValidationError
 
-from .config import OPERATING_SYSTEM, EnvConfig
+from .config import OPERATING_SYSTEM, EnvConfig, OperationSystem
 from .logger import LOGGER
 from .models import SystemPartitions, darwin, linux
 from .notification import notification_service, send_report
@@ -236,10 +236,13 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
         Disk:
         Yields the Disk object from the generated Dataframe.
     """
-    if OPERATING_SYSTEM == "Darwin":
+    if OPERATING_SYSTEM == OperationSystem.darwin:
         for partition in get_disk(env):
             if metrics := get_smart_metrics_macos(env.smart_lib, partition):
-                yield darwin.Disk(**metrics)
+                try:
+                    yield darwin.Disk(**metrics)
+                except ValidationError as error:
+                    LOGGER.error(error.errors())
         return
     smart_dump = get_smart_metrics(env)
     block_devices = dict(

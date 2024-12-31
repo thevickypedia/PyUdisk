@@ -12,8 +12,8 @@ class Message(BaseModel):
 
     """
 
-    string: Optional[str]
-    severity: Optional[str]
+    string: Optional[str] = None
+    severity: Optional[str] = None
 
 
 class SmartStatusNvme(BaseModel):
@@ -23,7 +23,7 @@ class SmartStatusNvme(BaseModel):
 
     """
 
-    value: Optional[int]
+    value: Optional[int] = None
 
 
 class SmartStatus(BaseModel):
@@ -33,8 +33,8 @@ class SmartStatus(BaseModel):
 
     """
 
-    passed: Optional[bool]
-    nvme: Optional[SmartStatusNvme]
+    passed: Optional[bool] = None
+    nvme: Optional[SmartStatusNvme] = None
 
 
 class NvmeVersion(BaseModel):
@@ -44,8 +44,8 @@ class NvmeVersion(BaseModel):
 
     """
 
-    string: Optional[str]
-    value: Optional[int]
+    string: Optional[str] = None
+    value: Optional[int] = None
 
 
 class NvmePciVendor(BaseModel):
@@ -55,8 +55,8 @@ class NvmePciVendor(BaseModel):
 
     """
 
-    id: Optional[int]
-    subsystem_id: Optional[int]
+    id: Optional[int] = None
+    subsystem_id: Optional[int] = None
 
 
 class SmartSupport(BaseModel):
@@ -66,8 +66,8 @@ class SmartSupport(BaseModel):
 
     """
 
-    available: Optional[bool]
-    enabled: Optional[bool]
+    available: Optional[bool] = None
+    enabled: Optional[bool] = None
 
 
 class NvmeSmartHealthInformationLog(BaseModel):
@@ -77,21 +77,21 @@ class NvmeSmartHealthInformationLog(BaseModel):
 
     """
 
-    critical_warning: Optional[int]
-    temperature: Optional[int]
-    available_spare: Optional[int]
-    available_spare_threshold: Optional[int]
-    percentage_used: Optional[int]
-    data_units_read: Optional[int]
-    data_units_written: Optional[int]
-    host_reads: Optional[int]
-    host_writes: Optional[int]
-    controller_busy_time: Optional[int]
-    power_cycles: Optional[int]
-    power_on_hours: Optional[int]
-    unsafe_shutdowns: Optional[int]
-    media_errors: Optional[int]
-    num_err_log_entries: Optional[int]
+    critical_warning: Optional[int] = None
+    temperature: Optional[int] = None
+    available_spare: Optional[int] = None
+    available_spare_threshold: Optional[int] = None
+    percentage_used: Optional[int] = None
+    data_units_read: Optional[int] = None
+    data_units_written: Optional[int] = None
+    host_reads: Optional[int] = None
+    host_writes: Optional[int] = None
+    controller_busy_time: Optional[int] = None
+    power_cycles: Optional[int] = None
+    power_on_hours: Optional[int] = None
+    unsafe_shutdowns: Optional[int] = None
+    media_errors: Optional[int] = None
+    num_err_log_entries: Optional[int] = None
 
 
 class Device(BaseModel):
@@ -101,10 +101,10 @@ class Device(BaseModel):
 
     """
 
-    name: Optional[str]
-    info_name: Optional[str]
-    type: Optional[str]
-    protocol: Optional[str]
+    name: Optional[str] = None
+    info_name: Optional[str] = None
+    type: Optional[str] = None
+    protocol: Optional[str] = None
 
 
 class LocalTime(BaseModel):
@@ -114,8 +114,8 @@ class LocalTime(BaseModel):
 
     """
 
-    time_t: Optional[int]
-    asctime: Optional[str]
+    time_t: Optional[int] = None
+    asctime: Optional[str] = None
 
 
 class SmartCTL(BaseModel):
@@ -125,14 +125,14 @@ class SmartCTL(BaseModel):
 
     """
 
-    version: Optional[List[int]]
-    pre_release: Optional[bool]
-    svn_revision: Optional[str]
-    platform_info: Optional[str]
-    build_info: Optional[str]
-    argv: Optional[List[str]]
-    messages: Optional[List[Message]]
-    exit_status: Optional[int]
+    version: Optional[List[int]] = None
+    pre_release: Optional[bool] = None
+    svn_revision: Optional[str] = None
+    platform_info: Optional[str] = None
+    build_info: Optional[str] = None
+    argv: Optional[List[str]] = None
+    messages: Optional[List[Message]] = None
+    exit_status: Optional[int] = None
 
 
 class Temperature(BaseModel):
@@ -142,7 +142,7 @@ class Temperature(BaseModel):
 
     """
 
-    current: Optional[int]
+    current: Optional[int] = None
 
 
 class PowerOnTime(BaseModel):
@@ -152,7 +152,7 @@ class PowerOnTime(BaseModel):
 
     """
 
-    hours: Optional[int]
+    hours: Optional[int] = None
 
 
 class Disk(BaseModel):
@@ -162,25 +162,25 @@ class Disk(BaseModel):
 
     """
 
-    json_format_version: Optional[List[int]]
-    smartctl: Optional[SmartCTL]
-    local_time: Optional[LocalTime]
-    device: Optional[Device]
-    model_name: Optional[str]
-    serial_number: Optional[str]
-    firmware_version: Optional[str]
-    nvme_pci_vendor: Optional[NvmePciVendor]
-    nvme_ieee_oui_identifier: Optional[int]
-    nvme_controller_id: Optional[int]
-    nvme_version: Optional[NvmeVersion]
-    nvme_number_of_namespaces: Optional[int]
-    smart_support: Optional[SmartSupport]
-    smart_status: Optional[SmartStatus]
-    nvme_smart_health_information_log: Optional[NvmeSmartHealthInformationLog]
-    temperature: Optional[Temperature]
-    power_cycle_count: Optional[int]
-    power_on_time: Optional[PowerOnTime]
-    usage: Optional[Usage]
+    json_format_version: Optional[List[int]] = None
+    smartctl: Optional[SmartCTL] = None
+    local_time: Optional[LocalTime] = None
+    device: Optional[Device] = None
+    model_name: Optional[str] = None
+    serial_number: Optional[str] = None
+    firmware_version: Optional[str] = None
+    nvme_pci_vendor: Optional[NvmePciVendor] = None
+    nvme_ieee_oui_identifier: Optional[int] = None
+    nvme_controller_id: Optional[int] = None
+    nvme_version: Optional[NvmeVersion] = None
+    nvme_number_of_namespaces: Optional[int] = None
+    smart_support: Optional[SmartSupport] = None
+    smart_status: Optional[SmartStatus] = None
+    nvme_smart_health_information_log: Optional[NvmeSmartHealthInformationLog] = None
+    temperature: Optional[Temperature] = None
+    power_cycle_count: Optional[int] = None
+    power_on_time: Optional[PowerOnTime] = None
+    usage: Optional[Usage] = None
 
     class Config:
         """Configuration for the model."""
