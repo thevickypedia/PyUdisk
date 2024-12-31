@@ -11,10 +11,14 @@ from pydantic import NewPath
 
 from .config import EnvConfig
 from .logger import LOGGER
-from .models import BlockDevices, Disk, Drives, SystemPartitions
+from .models import SystemPartitions, linux
 from .notification import notification_service, send_report
 from .support import humanize_usage_metrics, load_dump, load_partitions
 from .util import standard
+
+# todo: Include usage for Darwin OS
+# brew install smartmontools
+# smartctl -a {disk} --json
 
 
 def get_disk(env: EnvConfig) -> Generator[sdiskpart]:
@@ -57,7 +61,7 @@ def get_smart_metrics(env: EnvConfig) -> str:
         text = load_dump(filename=env.sample_dump)
     else:
         try:
-            output = subprocess.check_output(f"{env.udisk_lib} dump", shell=True)
+            output = subprocess.check_output(f"{env.disk_lib} dump", shell=True)
         except subprocess.CalledProcessError as error:
             LOGGER.error(error)
             return ""
@@ -79,13 +83,13 @@ def parse_drives(input_data: str) -> Dict[str, Any]:
     head = None
     category = None
     for line in input_data.splitlines():
-        if line.startswith(Drives.head):
-            head = line.replace(Drives.head, "").rstrip(":").strip()
+        if line.startswith(linux.Drives.head):
+            head = line.replace(linux.Drives.head, "").rstrip(":").strip()
             formatted[head] = {}
-        elif line.strip() in (Drives.category1, Drives.category2):
+        elif line.strip() in (linux.Drives.category1, linux.Drives.category2):
             category = (
-                line.replace(Drives.category1, "Info")
-                .replace(Drives.category2, "Attributes")
+                line.replace(linux.Drives.category1, "Info")
+                .replace(linux.Drives.category2, "Attributes")
                 .strip()
             )
             formatted[head][category] = {}
@@ -120,7 +124,7 @@ def parse_block_devices(
     block = None
     category = None
     block_partitions = {
-        f"{BlockDevices.head}{block_device.device.split('/')[-1]}:": block_device
+        f"{linux.BlockDevices.head}{block_device.device.split('/')[-1]}:": block_device
         for block_device in get_disk(env)
     }
     for line in input_data.splitlines():
@@ -129,14 +133,14 @@ def parse_block_devices(
             block = matching_block
             block_devices[block] = {}
         elif block and line.strip() in (
-            BlockDevices.category1,
-            BlockDevices.category2,
-            BlockDevices.category3,
+            linux.BlockDevices.category1,
+            linux.BlockDevices.category2,
+            linux.BlockDevices.category3,
         ):
             category = (
-                line.replace(BlockDevices.category1, "Block")
-                .replace(BlockDevices.category2, "Filesystem")
-                .replace(BlockDevices.category3, "Partition")
+                line.replace(linux.BlockDevices.category1, "Block")
+                .replace(linux.BlockDevices.category2, "Filesystem")
+                .replace(linux.BlockDevices.category3, "Partition")
                 .strip()
             )
         elif block and category:
@@ -145,7 +149,7 @@ def parse_block_devices(
                 key = key.strip()
                 val = val.strip()
                 if key == "Drive":
-                    val = eval(val).replace(Drives.head, "")
+                    val = eval(val).replace(linux.Drives.head, "")
                 if key == "Symlinks":
                     block_devices[block][key] = [val]
             except ValueError as error:
@@ -180,7 +184,7 @@ def parse_block_devices(
     return block_devices
 
 
-def smart_metrics(env: EnvConfig) -> Generator[Disk]:
+def smart_metrics(env: EnvConfig) -> Generator[linux.Disk]:
     """Gathers smart metrics using udisksctl dump, and constructs a Disk object.
 
     Args:
@@ -212,7 +216,7 @@ def smart_metrics(env: EnvConfig) -> Generator[Disk]:
         LOGGER.warning("UNmounted drive(s) found - '%s'", ", ".join(diff))
     optional_fields = [
         k
-        for k, v in Disk.model_json_schema().get("properties").items()
+        for k, v in linux.Disk.model_json_schema().get("properties").items()
         if v.get("anyOf", [{}])[-1].get("type", "") == "null"
     ]
     # S.M.A.R.T metrics can be null, but the keys are mandatory
@@ -230,10 +234,10 @@ def smart_metrics(env: EnvConfig) -> Generator[Disk]:
                 f"\n\n{drive} not found in {[bd['Drive'] for bd in block_devices.values()]}"
             )
         data["Usage"] = humanize_usage_metrics(psutil.disk_usage(partition.mountpoint))
-        yield Disk(id=drive, model=data.get("Info", {}).get("Model", ""), **data)
+        yield linux.Disk(id=drive, model=data.get("Info", {}).get("Model", ""), **data)
 
 
-def monitor_disk(env: EnvConfig) -> Generator[Disk]:
+def monitor_disk(env: EnvConfig) -> Generator[linux.Disk]:
     """Monitors disk attributes based on the configuration.
 
     Args:

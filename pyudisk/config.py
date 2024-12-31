@@ -1,4 +1,5 @@
 import os
+import platform
 from typing import Any, List, Optional
 
 from pydantic import BaseModel, DirectoryPath, Field, FilePath, HttpUrl, field_validator
@@ -36,6 +37,27 @@ class Metric(BaseModel):
         return value
 
 
+class DiskLib(BaseModel):
+    """Disk library for Linux and Darwin.
+
+    >>> DiskLib
+
+    """
+
+    smartctl: FilePath = "/usr/local/bin/smartctl"
+    udisk: FilePath = "/usr/bin/udisksctl"
+
+
+def get_disk_lib() -> FilePath:
+    """Returns filepath to the disk library as per the operating system."""
+    operating_system = platform.system()
+    if operating_system == "Darwin":
+        return DiskLib.smartctl
+    if operating_system == "Linux":
+        return DiskLib.udisk
+    raise ValueError(f"Unsupported OS: {operating_system}")
+
+
 class EnvConfig(BaseSettings):
     """Environment variables configuration.
 
@@ -47,8 +69,8 @@ class EnvConfig(BaseSettings):
     sample_partitions: str = "partitions.json"
     sample_dump: str = "dump.txt"
 
-    udisk_lib: FilePath = "/usr/bin/udisksctl"
-    metrics: Metric | List[Metric] = Field(default_factory=list)
+    disk_lib: DiskLib = get_disk_lib()
+    metrics: Metric | List[Metric] = Field(default=list)
 
     # Email/SMS notifications
     gmail_user: Optional[str] = None
