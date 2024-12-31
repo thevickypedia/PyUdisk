@@ -16,7 +16,7 @@ class SystemPartitions(BaseModel):
     """System partitions' mountpoints and fstypes."""
 
     system_mountpoints: List[str] = Field(
-        default=lambda: [
+        default_factory=lambda: [
             "/sys",
             "/proc",
             "/dev",
@@ -34,7 +34,7 @@ class SystemPartitions(BaseModel):
         ]
     )
     system_fstypes: List[str] = Field(
-        default=lambda: [
+        default_factory=lambda: [
             "sysfs",
             "proc",
             "devtmpfs",

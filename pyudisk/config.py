@@ -5,7 +5,9 @@ from typing import Any, List, Optional
 from pydantic import BaseModel, DirectoryPath, Field, FilePath, HttpUrl, field_validator
 from pydantic_settings import BaseSettings
 
-from .models import Attributes
+from .models import linux
+
+OPERATING_SYSTEM = platform.system()
 
 
 class Metric(BaseModel):
@@ -50,12 +52,12 @@ class DiskLib(BaseModel):
 
 def get_disk_lib() -> FilePath:
     """Returns filepath to the disk library as per the operating system."""
-    operating_system = platform.system()
-    if operating_system == "Darwin":
-        return DiskLib.smartctl
-    if operating_system == "Linux":
-        return DiskLib.udisk
-    raise ValueError(f"Unsupported OS: {operating_system}")
+    disklib = DiskLib()
+    if OPERATING_SYSTEM == "Darwin":
+        return disklib.smartctl
+    if OPERATING_SYSTEM == "Linux":
+        return disklib.udisk
+    raise ValueError(f"Unsupported OS: {OPERATING_SYSTEM}")
 
 
 class EnvConfig(BaseSettings):
@@ -69,8 +71,8 @@ class EnvConfig(BaseSettings):
     sample_partitions: str = "partitions.json"
     sample_dump: str = "dump.txt"
 
-    disk_lib: DiskLib = get_disk_lib()
-    metrics: Metric | List[Metric] = Field(default=list)
+    disk_lib: FilePath = get_disk_lib()
+    metrics: Metric | List[Metric] = Field(default_factory=list)
 
     # Email/SMS notifications
     gmail_user: Optional[str] = None
@@ -94,7 +96,7 @@ class EnvConfig(BaseSettings):
     report_file: str = Field("disk_report_%m-%d-%Y_%I:%M_%p.html", pattern=r".*\.html$")
 
     # noinspection PyMethodParameters
-    @field_validator("udisk_lib", mode="before")
+    @field_validator("disk_lib", mode="before")
     def validate_udisk_lib(cls, value: str) -> str:
         """Validates the disk library path only when DRY_RUN is set to false."""
         if os.environ.get("DRY_RUN", "false") == "true":
@@ -113,7 +115,9 @@ class EnvConfig(BaseSettings):
                 for dtype in dtypes.get("anyOf")
                 if dtype.get("type", "") != "null"
             ]
-            for name, dtypes in Attributes.model_json_schema().get("properties").items()
+            for name, dtypes in linux.Attributes.model_json_schema()
+            .get("properties")
+            .items()
         }
         attr_format = "\n\t- ".join(attributes.keys()) + "\n"
         # pydantic datatype mapping for schema validation

@@ -1,3 +1,4 @@
+import json
 import os
 import pathlib
 import subprocess
@@ -9,16 +10,14 @@ import psutil
 from psutil._common import sdiskpart
 from pydantic import NewPath
 
-from .config import EnvConfig
+from .config import OPERATING_SYSTEM, EnvConfig
 from .logger import LOGGER
-from .models import SystemPartitions, linux
+from .models import SystemPartitions, darwin, linux
 from .notification import notification_service, send_report
 from .support import humanize_usage_metrics, load_dump, load_partitions
 from .util import standard
 
-# todo: Include usage for Darwin OS
-# brew install smartmontools
-# smartctl -a {disk} --json
+# todo: Extend usage for Darwin OS to generate_html and monitor
 
 
 def get_disk(env: EnvConfig) -> Generator[sdiskpart]:
@@ -194,6 +193,18 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk]:
         Disk:
         Yields the Disk object from the generated Dataframe.
     """
+    if OPERATING_SYSTEM == "Darwin":
+        for part in get_disk(env):
+            try:
+                text = subprocess.check_output(
+                    f"{env.disk_lib} -a {part.device} --json", shell=True
+                )
+                output = json.loads(text.decode(encoding="UTF-8"))
+            except subprocess.SubprocessError as error:
+                LOGGER.error(error)
+                output = {}
+            yield darwin.Disk(**output)
+        return
     smart_dump = get_smart_metrics(env)
     block_devices = dict(
         sorted(
