@@ -30,6 +30,12 @@ def celsius_to_kelvin(celsius: int | float):
     return kelvin
 
 
+def celsius_to_fahrenheit(celsius: int | float):
+    """Convert Celsius to Fahrenheit."""
+    fahrenheit = (celsius * 9/5) + 32
+    return fahrenheit
+
+
 def format_nos(input_: float) -> int | float:
     """Removes ``.0`` float values.
 
