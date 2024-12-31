@@ -8,7 +8,7 @@ from typing import Any, Dict, List, NoReturn
 
 import psutil
 from psutil._common import sdiskpart
-from pydantic import NewPath
+from pydantic import FilePath, NewPath, ValidationError
 
 from .config import OPERATING_SYSTEM, EnvConfig
 from .logger import LOGGER
@@ -60,9 +60,10 @@ def get_smart_metrics(env: EnvConfig) -> str:
         text = load_dump(filename=env.sample_dump)
     else:
         try:
-            output = subprocess.check_output(f"{env.disk_lib} dump", shell=True)
+            output = subprocess.check_output(f"{env.smart_lib} dump", shell=True)
         except subprocess.CalledProcessError as error:
-            LOGGER.error(error)
+            result = error.output.decode(encoding="UTF-8").strip()
+            LOGGER.error(f"[{error.returncode}]: {result}\n")
             return ""
         text = output.decode(encoding="UTF-8")
     return text
@@ -183,7 +184,49 @@ def parse_block_devices(
     return block_devices
 
 
-def smart_metrics(env: EnvConfig) -> Generator[linux.Disk]:
+def get_smart_metrics_macos(smart_lib: FilePath, partition: sdiskpart) -> dict:
+    """Gathers disk information using the 'smartctl' command on macOS.
+
+    Args:
+        smart_lib: Library path to 'smartctl' command.
+        partition: Disk partition to gather metrics.
+
+    Returns:
+        Disk:
+        Returns the Disk object with the gathered metrics.
+    """
+    try:
+        result = subprocess.run(
+            [smart_lib, "-a", partition.device, "--json"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            LOGGER.debug(
+                "smartctl returned non-zero exit code %d for %s",
+                result.returncode,
+                partition.device,
+            )
+        output = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        LOGGER.error("Failed to decode JSON output from smartctl: %s", error)
+        output = {}
+    except subprocess.CalledProcessError as error:
+        result = error.output.decode(encoding="UTF-8").strip()
+        LOGGER.error("[%d]: %s", error.returncode, result)
+        output = {}
+    try:
+        if output.get("device"):
+            output["usage"] = humanize_usage_metrics(
+                psutil.disk_usage(partition.mountpoint)
+            )
+            return output
+    except ValidationError as error:
+        LOGGER.error(error.errors())
+
+
+def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
     """Gathers smart metrics using udisksctl dump, and constructs a Disk object.
 
     Args:
@@ -194,16 +237,9 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk]:
         Yields the Disk object from the generated Dataframe.
     """
     if OPERATING_SYSTEM == "Darwin":
-        for part in get_disk(env):
-            try:
-                text = subprocess.check_output(
-                    f"{env.disk_lib} -a {part.device} --json", shell=True
-                )
-                output = json.loads(text.decode(encoding="UTF-8"))
-            except subprocess.SubprocessError as error:
-                LOGGER.error(error)
-                output = {}
-            yield darwin.Disk(**output)
+        for partition in get_disk(env):
+            if metrics := get_smart_metrics_macos(env.smart_lib, partition):
+                yield darwin.Disk(**metrics)
         return
     smart_dump = get_smart_metrics(env)
     block_devices = dict(

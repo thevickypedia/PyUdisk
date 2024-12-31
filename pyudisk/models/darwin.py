@@ -155,16 +155,6 @@ class PowerOnTime(BaseModel):
     hours: Optional[int]
 
 
-class JsonFormatVersion(BaseModel):
-    """JSON format version information.
-
-    >>> JsonFormatVersion
-
-    """
-
-    version: Optional[List[int]]
-
-
 class Disk(BaseModel):
     """Collective disk information.
 
@@ -172,7 +162,7 @@ class Disk(BaseModel):
 
     """
 
-    json_format_version: Optional[JsonFormatVersion]
+    json_format_version: Optional[List[int]]
     smartctl: Optional[SmartCTL]
     local_time: Optional[LocalTime]
     device: Optional[Device]
@@ -191,3 +181,8 @@ class Disk(BaseModel):
     power_cycle_count: Optional[int]
     power_on_time: Optional[PowerOnTime]
     usage: Optional[Usage]
+
+    class Config:
+        """Configuration for the model."""
+
+        protected_namespaces = ()
