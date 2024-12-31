@@ -17,7 +17,7 @@ from .notification import notification_service, send_report
 from .support import humanize_usage_metrics, load_dump, load_partitions
 from .util import standard
 
-# todo: Extend usage for Darwin OS to generate_html and monitor
+# todo: Extend usage for Darwin OS to monitor
 
 
 def get_disk(env: EnvConfig) -> Generator[sdiskpart]:
@@ -343,7 +343,7 @@ def generate_html(
 
     template_dir = os.path.join(pathlib.Path(__file__).parent, "templates")
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
-    template = env.get_template("template.html")
+    template = env.get_template(f"{OPERATING_SYSTEM}.html")
     now = datetime.now()
     html_output = template.render(
         data=data, last_updated=f"{now.strftime('%c')} {now.astimezone().tzinfo}"
@@ -367,7 +367,7 @@ def generate_report(**kwargs) -> str:
     """
     env = EnvConfig(**kwargs)
     if kwargs.get("raw"):
-        return generate_html([disk.model_dump() for disk in monitor_disk(env)])
+        return generate_html([disk.model_dump() for disk in smart_metrics(env)])
     if report_file := kwargs.get("filepath"):
         assert report_file.endswith(
             ".html"
@@ -382,7 +382,7 @@ def generate_report(**kwargs) -> str:
             os.path.join(env.report_dir, env.report_file)
         )
     LOGGER.info("Generating disk report")
-    disk_report = [disk.model_dump() for disk in monitor_disk(env)]
+    disk_report = [disk.model_dump() for disk in smart_metrics(env)]
     generate_html(disk_report, report_file)
     LOGGER.info("Report has been stored in %s", report_file)
     return report_file
