@@ -7,7 +7,7 @@ import click
 
 from .main import EnvConfig, generate_report, monitor, smart_metrics  # noqa: F401
 
-version = "0.2.0a1"
+version = "0.2.0"
 
 
 @click.command()

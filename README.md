@@ -1,7 +1,6 @@
-# PyUdisk (Linux)
+# PyUdisk
 
-PyUdisk is a wrapper around the `udisksctl` command-line tool to generate a comprehensive list of all block devices and drives on a Linux machines.
-
+PyUdisk is a python module to generate a S.M.A.R.T metrics for all drives/partitions on macOS and Linux machines.
 
 ### Installation
 
@@ -46,7 +45,7 @@ pyudisk start
 > _By default, `PyUdisk` will look for a `.env` file in the current working directory._
 </details>
 
-- **UDISK_LIB**: Path to the `udisksctl` command-line tool. Default: `/usr/bin/udisksctl`
+- **SMART_LIB**: Path to the `udisksctl` command-line tool. Default: `/usr/bin/udisksctl`
 - **METRICS**: List of metrics to monitor. Default: `[]`
 - **GMAIL_USER**: Gmail username to authenticate SMTP library.
 - **GMAIL_PASS**: Gmail password to authenticate SMTP library.
