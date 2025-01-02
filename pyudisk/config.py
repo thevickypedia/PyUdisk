@@ -2,6 +2,7 @@ import os
 import platform
 from typing import Any, List, Optional
 
+from pyarchitecture.config import default_disk_lib
 from pydantic import BaseModel, DirectoryPath, Field, FilePath, HttpUrl, field_validator
 from pydantic_settings import BaseSettings
 
@@ -80,6 +81,11 @@ def get_smart_lib() -> FilePath:
     raise ValueError(f"Unsupported OS: {OPERATING_SYSTEM}")
 
 
+def get_disk_lib() -> str:
+    """Get OS specific disk library to retreive the physical disk ID."""
+    return default_disk_lib()[OPERATING_SYSTEM.lower()]
+
+
 class EnvConfig(BaseSettings):
     """Environment variables configuration.
 
@@ -92,6 +98,7 @@ class EnvConfig(BaseSettings):
     sample_dump: str = "dump.txt"
 
     smart_lib: FilePath = get_smart_lib()
+    disk_lib: FilePath = get_disk_lib()
     metrics: Metric | List[Metric] = Field(default_factory=list)
 
     # Email/SMS notifications

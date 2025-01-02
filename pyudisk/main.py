@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, List, NoReturn
 
 import psutil
+import pyarchitecture.disks
 from psutil._common import sdiskpart
 from pydantic import FilePath, NewPath, ValidationError
 
@@ -18,7 +19,7 @@ from .support import humanize_usage_metrics, load_dump, load_partitions
 from .util import standard
 
 
-def get_disk(env: EnvConfig) -> Generator[sdiskpart]:
+def get_partitions(env: EnvConfig) -> Generator[sdiskpart]:
     """Gathers disk information using the 'psutil' library.
 
     Args:
@@ -123,7 +124,7 @@ def parse_block_devices(
     category = None
     block_partitions = {
         f"{linux.BlockDevices.head}{block_device.device.split('/')[-1]}:": block_device
-        for block_device in get_disk(env)
+        for block_device in get_partitions(env)
     }
     for line in input_data.splitlines():
         if matching_block := block_partitions.get(line):
@@ -182,12 +183,15 @@ def parse_block_devices(
     return block_devices
 
 
-def get_smart_metrics_macos(smart_lib: FilePath, partition: sdiskpart) -> dict:
+def get_smart_metrics_macos(
+    smart_lib: FilePath, device_id: str, mountpoints: str
+) -> dict:
     """Gathers disk information using the 'smartctl' command on macOS.
 
     Args:
         smart_lib: Library path to 'smartctl' command.
-        partition: Disk partition to gather metrics.
+        device_id: Device ID for the physical drive.
+        mountpoints: Mountpoints for the partitions.
 
     Returns:
         Disk:
@@ -195,7 +199,7 @@ def get_smart_metrics_macos(smart_lib: FilePath, partition: sdiskpart) -> dict:
     """
     try:
         result = subprocess.run(
-            [smart_lib, "-a", partition.device, "--json"],
+            [smart_lib, "-a", device_id, "--json"],
             capture_output=True,
             text=True,
             check=False,
@@ -204,7 +208,7 @@ def get_smart_metrics_macos(smart_lib: FilePath, partition: sdiskpart) -> dict:
             LOGGER.debug(
                 "smartctl returned non-zero exit code %d for %s",
                 result.returncode,
-                partition.device,
+                device_id,
             )
         output = json.loads(result.stdout)
     except json.JSONDecodeError as error:
@@ -216,12 +220,19 @@ def get_smart_metrics_macos(smart_lib: FilePath, partition: sdiskpart) -> dict:
         output = {}
     try:
         if output.get("device"):
-            output["usage"] = humanize_usage_metrics(
-                psutil.disk_usage(partition.mountpoint)
-            )
+            if mountpoints:
+                mountpoint = mountpoints[0]
+            else:
+                mountpoint = "/"
+            output["usage"] = humanize_usage_metrics(psutil.disk_usage(mountpoint))
             return output
     except ValidationError as error:
         LOGGER.error(error.errors())
+
+
+def raise_pyarch_error(device: Dict[str, str]) -> NoReturn:
+    """Raises value error for the device specified."""
+    raise ValueError(f"'node' and 'device_id' not found in {device}")
 
 
 def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
@@ -235,8 +246,27 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
         Yields the Disk object from the generated Dataframe.
     """
     if OPERATING_SYSTEM == OperationSystem.darwin:
-        for partition in get_disk(env):
-            if metrics := get_smart_metrics_macos(env.smart_lib, partition):
+        try:
+            disk_data = [
+                (
+                    (
+                        disk.get("node")
+                        or disk.get("device_id")
+                        or raise_pyarch_error(disk)
+                    ),
+                    disk.get("mountpoints"),
+                )
+                for disk in pyarchitecture.disks.get_all_disks(env.disk_lib)
+            ]
+            assert disk_data, "Failed to load physical disk data"
+        except Exception as error:
+            LOGGER.error(error)
+            disk_data = [
+                (partition.device, partition.mountpoint)
+                for partition in get_partitions(env)
+            ]
+        for (device_id, mountpoint) in disk_data:
+            if metrics := get_smart_metrics_macos(env.smart_lib, device_id, mountpoint):
                 try:
                     yield darwin.Disk(**metrics)
                 except ValidationError as error:
