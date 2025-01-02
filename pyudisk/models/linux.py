@@ -1,10 +1,17 @@
 import json
-from enum import StrEnum
 from typing import List, Optional
 
 from pydantic import BaseModel, DirectoryPath, field_validator
 
 from . import Usage
+
+try:
+    from enum import StrEnum
+except ImportError:
+    from enum import Enum
+
+    class StrEnum(str, Enum):
+        """Custom StrEnum object for python3.10."""
 
 
 class Drives(StrEnum):

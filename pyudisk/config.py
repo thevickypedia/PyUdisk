@@ -1,6 +1,5 @@
 import os
 import platform
-import sys
 from typing import Any, List, Optional
 
 from pydantic import BaseModel, DirectoryPath, Field, FilePath, HttpUrl, field_validator
@@ -10,13 +9,13 @@ from .models import linux
 
 OPERATING_SYSTEM = platform.system()
 
-if sys.version_info.minor > 10:
+try:
     from enum import StrEnum
-else:
+except ImportError:
     from enum import Enum
 
     class StrEnum(str, Enum):
-        """Override for python 3.10 due to lack of StrEnum."""
+        """Custom StrEnum object for python3.10."""
 
 
 class OperationSystem(StrEnum):
