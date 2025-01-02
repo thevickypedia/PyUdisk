@@ -360,7 +360,9 @@ def monitor_disk(env: EnvConfig) -> Generator[linux.Disk]:
         Disk:
         Data structure parsed as a Disk object.
     """
-    assert OPERATING_SYSTEM == OperationSystem.linux, "Monitoring feature is available only for Linux machines!!"
+    assert (
+        OPERATING_SYSTEM == OperationSystem.linux
+    ), "Monitoring feature is available only for Linux machines!!"
     message = ""
     for disk in smart_metrics(env):
         if disk.Attributes:
@@ -393,7 +395,9 @@ def monitor(**kwargs) -> None:
     Args:
         **kwargs: Arbitrary keyword arguments.
     """
-    assert OPERATING_SYSTEM == OperationSystem.linux, "Monitoring feature is available only for Linux machines!!"
+    assert (
+        OPERATING_SYSTEM == OperationSystem.linux
+    ), "Monitoring feature is available only for Linux machines!!"
     env = EnvConfig(**kwargs)
     disk_report = [disk.model_dump() for disk in monitor_disk(env)]
     if disk_report:

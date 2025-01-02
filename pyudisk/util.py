@@ -32,7 +32,7 @@ def celsius_to_kelvin(celsius: int | float):
 
 def celsius_to_fahrenheit(celsius: int | float):
     """Convert Celsius to Fahrenheit."""
-    fahrenheit = (celsius * 9/5) + 32
+    fahrenheit = (celsius * 9 / 5) + 32
     return fahrenheit
 
 
