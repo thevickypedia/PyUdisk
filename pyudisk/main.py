@@ -321,19 +321,22 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
     smart_dump = get_smart_metrics(env)
     block_devices = parse_block_devices(env, smart_dump)
     drives = {k: v for k, v in sorted(parse_drives(smart_dump).items())}
+    diff = set()
+    # Enable mount warning by default (log warning messages if disk is not mounted)
+    mount_warning = os.environ.get("MOUNT_WARNING", "1") == "1"
     # A drive can have multiple partitions, but any mounted drive should have at least one partition
     if len(block_devices) < len(drives):
-        LOGGER.warning(
+        LOGGER.debug(
             f"Number of block devices [{len(block_devices)}] is less than the number of drives [{len(drives)}]"
         )
-        device_names = set(block_devices.keys())
-        drive_names = set(drives.keys())
-        diff = (
-            drive_names - device_names
-            if len(drive_names) > len(device_names)
-            else device_names - drive_names
-        )
-        LOGGER.warning("UNmounted drive(s) found - '%s'", ", ".join(diff))
+        device_names = set(sorted(block_devices.keys()))
+        drive_names = set(sorted(drives.keys()))
+        if len(drive_names) > len(device_names):
+            diff = drive_names - device_names
+        else:
+            diff = device_names - drive_names
+        if diff and mount_warning:
+            LOGGER.warning("UNmounted drive(s) found - '%s'", ", ".join(diff))
     optional_fields = [
         k
         for k, v in linux.Disk.model_json_schema().get("properties").items()
@@ -350,8 +353,9 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
             yield linux.Disk(
                 id=drive, model=data.get("Info", {}).get("Model", ""), **data
             )
-        else:
-            raise ValueError(f"{drive} not found in {drives.keys()}")
+        elif drive not in diff:
+            # Check if this issue has been caught in unmounted warnings already - if so, skip the warning
+            LOGGER.warning(f"{drive} not found in {block_devices.keys()}")
 
 
 def generate_html(

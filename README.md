@@ -45,7 +45,8 @@ pyudisk start
 > _By default, `PyUdisk` will look for a `.env` file in the current working directory._
 </details>
 
-- **SMART_LIB**: Path to the `udisksctl` command-line tool. Default: `/usr/bin/udisksctl`
+- **SMART_LIB**: Path to the S.M.A.R.T CLI library. Uses `udisksctl` for Linux and `smartctl` for macOS.
+- **DISK_LIB**: Path to disk util library. Uses `lsblk` for Linux and `diskutil` for macOS.
 - **METRICS**: List of metrics to monitor. Default: `[]`
 - **GMAIL_USER**: Gmail username to authenticate SMTP library.
 - **GMAIL_PASS**: Gmail password to authenticate SMTP library.
