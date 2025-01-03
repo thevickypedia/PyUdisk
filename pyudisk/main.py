@@ -4,7 +4,7 @@ import pathlib
 import subprocess
 from collections.abc import Generator
 from datetime import datetime
-from typing import Any, Dict, List, NoReturn, Tuple
+from typing import Any, Dict, List, NoReturn
 
 import psutil
 import pyarchitecture
@@ -16,7 +16,7 @@ from .logger import LOGGER
 from .models import SystemPartitions, darwin, linux
 from .notification import notification_service, send_report
 from .support import humanize_usage_metrics, load_dump, load_partitions
-from .util import standard
+from .util import size_converter, standard
 
 
 def get_partitions(env: EnvConfig) -> Generator[sdiskpart]:
@@ -183,67 +183,87 @@ def parse_block_devices(
     return block_devices
 
 
-def get_disk_data_macos(env: EnvConfig) -> List[Tuple[str, List[str]]]:
+def get_disk_data_macos(env: EnvConfig) -> Generator[Dict[str, str | List[str]]]:
     """Get disk information for macOS.
 
     Args:
         env: Environment variables configuration.
 
-    Returns:
-        List[Tuple[str, List[str]]]:
-        Returns a list of tuples containing device_id and mountpoints.
+    Yields:
+        Dict[str, str | List[str]]:
+        Yields a dictionary of device information as key-value pairs.
     """
     try:
         # 1: Attempt to extract physical disks from PyArchitecture
-        disk_data = [
-            (
-                (disk.get("node") or disk.get("device_id") or raise_pyarch_error(disk)),
-                disk.get("mountpoints"),
-            )
-            for disk in pyarchitecture.disks.get_all_disks(env.disk_lib)
-        ]
-        assert disk_data, "Failed to load physical disk data"
+        if all_disks := pyarchitecture.disks.get_all_disks(env.disk_lib):
+            yield from all_disks
+        else:
+            raise ValueError("Failed to load physical disk data")
     except Exception as error:
+        # The accuracy of methods 2, and 3 are questionable - it may vary from device to device
+        # But almost all macOS machines should be caught by the 1st method
         LOGGER.error(error)
         # 2: Assume disks with non-zero write count as physical disks
         # disk_io_counters fn will fetch disks rather than partitions (similar to output from 'diskutil list')
-        if physical_disks := [
-            f"/dev/{disk_id}"
-            for disk_id, disk_io in psutil.disk_io_counters(perdisk=True).items()
-            if min(disk_io.write_bytes, disk_io.write_count, disk_io.write_time) != 0
-        ]:
+        if not (
+            physical_disks := [
+                disk_id
+                for disk_id, disk_io in psutil.disk_io_counters(perdisk=True).items()
+                if min(disk_io.write_bytes, disk_io.write_count, disk_io.write_time)
+                != 0
+            ]
+        ):
             # If there is only one physical disk, then set the mountpoint to root (/)
             if len(physical_disks) == 1:
-                disk_data = [(physical_disks[0], ["/"])]
+                yield dict(
+                    size=size_converter(psutil.disk_usage("/").total),
+                    device_id=physical_disks[0],
+                    node=f"/dev/{physical_disks[0]}",
+                    mountpoints=["/"],
+                )
             else:
                 # If there are multiple physical disks, then set the mountpoint to disk path itself
-                disk_data = [(disk, [disk]) for disk in physical_disks]
+                for physical_disk in physical_disks:
+                    yield dict(
+                        size=size_converter(psutil.disk_usage("/").total),
+                        device_id=physical_disk,
+                        node=f"/dev/{physical_disk}",
+                        mountpoints=[f"/dev/{physical_disk}"],
+                    )
         else:
             # 3. If both the methods fail, then fallback to disk partitions
             LOGGER.warning(
-                "No physical disks found through IO counters, using all partitions instead"
+                "No physical disks found through IO counters, using partitions instead"
             )
-            disk_data = [
-                (partition.device, [partition.mountpoint])
-                for partition in get_partitions(env)
-            ]
-    return disk_data
+            for partition in get_partitions(env):
+                if (
+                    partition.mountpoint.startswith("/System/Volumes")
+                    or "Recovery" in partition.mountpoint
+                ):
+                    continue
+                yield dict(
+                    size=size_converter(psutil.disk_usage(partition.mountpoint).total),
+                    device_id=partition.device.lstrip("/dev/"),
+                    node=partition.device,
+                    mountpoints=[partition.device],
+                )
 
 
 def get_smart_metrics_macos(
-    smart_lib: FilePath, device_id: str, mountpoints: List[str]
+    smart_lib: FilePath, device_info: Dict[str, str | List[str]]
 ) -> dict:
     """Gathers disk information using the 'smartctl' command on macOS.
 
     Args:
         smart_lib: Library path to 'smartctl' command.
-        device_id: Device ID for the physical drive.
-        mountpoints: Mountpoints for the partitions.
+        device_info: Device information retrieved.
 
     Returns:
         Disk:
         Returns the Disk object with the gathered metrics.
     """
+    device_id = device_info["node"]
+    mountpoints = device_info["mountpoints"]
     try:
         result = subprocess.run(
             [smart_lib, "-a", device_id, "--json"],
@@ -266,13 +286,17 @@ def get_smart_metrics_macos(
         LOGGER.error("[%d]: %s", error.returncode, result)
         output = {}
     try:
-        output["device"] = output.get("device", darwin.Device(name=device_id, info_name=device_id))
+        output["device"] = output.get(
+            "device", darwin.Device(name=device_id, info_name=device_id).model_dump()
+        )
+        output["model_name"] = output.get("model_name", device_info.get("name"))
         if len(mountpoints) == 1:
             output["usage"] = humanize_usage_metrics(psutil.disk_usage(mountpoints[0]))
         else:
             # This will occur only when the disk retrieval falls back to partitions or the disk path itself
             # In both cases, the mountpoint can be assumed as root (/)
             output["usage"] = humanize_usage_metrics(psutil.disk_usage("/"))
+        output["mountpoints"] = mountpoints
         return output
     except ValidationError as error:
         LOGGER.error(error.errors())
@@ -294,8 +318,8 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
         Yields the Disk object from the generated Dataframe.
     """
     if OPERATING_SYSTEM == OperationSystem.darwin:
-        for (device_id, mountpoint) in get_disk_data_macos(env):
-            if metrics := get_smart_metrics_macos(env.smart_lib, device_id, mountpoint):
+        for device_info in get_disk_data_macos(env):
+            if metrics := get_smart_metrics_macos(env.smart_lib, device_info):
                 try:
                     yield darwin.Disk(**metrics)
                 except ValidationError as error:

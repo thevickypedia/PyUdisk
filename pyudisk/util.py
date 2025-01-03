@@ -59,6 +59,8 @@ def size_converter(byte_size: int | float) -> str:
         str:
         Converted understandable size.
     """
+    if byte_size == 0:
+        return "0 B"
     size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
     index = int(math.floor(math.log(byte_size, 1024)))
     return f"{format_nos(round(byte_size / pow(1024, index), 2))} {size_name[index]}"

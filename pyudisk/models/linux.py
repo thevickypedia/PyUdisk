@@ -1,7 +1,7 @@
 import json
 from typing import List, Optional
 
-from pydantic import BaseModel, DirectoryPath, field_validator
+from pydantic import BaseModel, field_validator
 
 from . import Usage
 
@@ -55,7 +55,7 @@ class Partition(BaseModel):
     IdUsage: Optional[str] = None
     ReadOnly: Optional[bool] = None
     Size: Optional[int] = None
-    MountPoints: Optional[DirectoryPath] = None
+    MountPoints: Optional[List[str]] = None
     Symlinks: Optional[List[str]] = None
 
 

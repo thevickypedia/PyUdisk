@@ -471,6 +471,7 @@ class Disk(BaseModel):
     ata_smart_self_test_log: Optional[ATAStandard] = None
     ata_smart_selective_self_test_log: Optional[ATASmartSelectiveSelfTestLog] = None
     usage: Optional[Usage] = None
+    mountpoints: List[str] = None
 
     class Config:
         """Configuration for the model."""
