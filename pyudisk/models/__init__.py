@@ -3,15 +3,6 @@ from typing import List
 from pydantic import BaseModel, Field
 
 
-class Usage(BaseModel):
-    """Disk partition's usage information."""
-
-    Total: str
-    Used: str
-    Free: str
-    Percent: int | float
-
-
 class SystemPartitions(BaseModel):
     """System partitions' mountpoints and fstypes."""
 

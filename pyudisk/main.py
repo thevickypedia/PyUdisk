@@ -15,7 +15,6 @@ from .config import OPERATING_SYSTEM, EnvConfig, OperationSystem
 from .logger import LOGGER
 from .models import SystemPartitions, darwin, linux
 from .notification import notification_service, send_report
-from .support import humanize_usage_metrics, load_dump, load_partitions
 from .util import size_converter, standard
 
 
@@ -29,12 +28,8 @@ def get_partitions(env: EnvConfig) -> Generator[sdiskpart]:
         sdiskpart:
         Yields the partition datastructure.
     """
-    if env.dry_run:
-        partitions = load_partitions(filename=env.sample_partitions)
-    else:
-        partitions = psutil.disk_partitions()
     system_partitions = SystemPartitions()
-    for partition in partitions:
+    for partition in psutil.disk_partitions():
         if (
             not any(
                 partition.mountpoint.startswith(mnt)
@@ -55,17 +50,13 @@ def get_smart_metrics(env: EnvConfig) -> str:
         str:
         Returns the output from disk util dump.
     """
-    if env.dry_run:
-        text = load_dump(filename=env.sample_dump)
-    else:
-        try:
-            output = subprocess.check_output(f"{env.smart_lib} dump", shell=True)
-        except subprocess.CalledProcessError as error:
-            result = error.output.decode(encoding="UTF-8").strip()
-            LOGGER.error(f"[{error.returncode}]: {result}\n")
-            return ""
-        text = output.decode(encoding="UTF-8")
-    return text
+    try:
+        output = subprocess.check_output(f"{env.smart_lib} dump", shell=True)
+    except subprocess.CalledProcessError as error:
+        result = error.output.decode(encoding="UTF-8").strip()
+        LOGGER.error(f"[{error.returncode}]: {result}\n")
+        return ""
+    return output.decode(encoding="UTF-8")
 
 
 def parse_drives(input_data: str) -> Dict[str, Any]:
@@ -108,7 +99,7 @@ def parse_drives(input_data: str) -> Dict[str, Any]:
 
 def parse_block_devices(
     env: EnvConfig, input_data: str
-) -> Dict[sdiskpart, Dict[str, str]]:
+) -> Dict[str, List[Dict[str, str]]]:
     """Parses block_devices' information from the dump into a datastructure.
 
     Args:
@@ -116,7 +107,7 @@ def parse_block_devices(
         input_data: Smart metrics dump.
 
     Returns:
-        Dict[sdiskpart, str]:
+        Dict[str, List[Dict[str, str]]]:
         Returns a dictionary of block_devices' metrics as key-value pairs.
     """
     block_devices = {}
@@ -184,10 +175,10 @@ def parse_block_devices(
                 block_devices[block][key] = val
     block_devices_updated = {}
     for _, value in block_devices.items():
-        if block_devices_updated.get(value['Drive']):
-            block_devices_updated[value['Drive']].append(value)
+        if block_devices_updated.get(value["Drive"]):
+            block_devices_updated[value["Drive"]].append(value)
         else:
-            block_devices_updated[value['Drive']] = [value]
+            block_devices_updated[value["Drive"]] = [value]
     return block_devices_updated
 
 
@@ -298,12 +289,6 @@ def get_smart_metrics_macos(
             "device", darwin.Device(name=device_id, info_name=device_id).model_dump()
         )
         output["model_name"] = output.get("model_name", device_info.get("name"))
-        if len(mountpoints) == 1:
-            output["usage"] = humanize_usage_metrics(psutil.disk_usage(mountpoints[0]))
-        else:
-            # This will occur only when the disk retrieval falls back to partitions or the disk path itself
-            # In both cases, the mountpoint can be assumed as root (/)
-            output["usage"] = humanize_usage_metrics(psutil.disk_usage("/"))
         output["mountpoints"] = mountpoints
         return output
     except ValidationError as error:
@@ -341,7 +326,7 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
         LOGGER.warning(
             f"Number of block devices [{len(block_devices)}] is less than the number of drives [{len(drives)}]"
         )
-        device_names = set(v["Drive"] for v in block_devices.values())
+        device_names = set(block_devices.keys())
         drive_names = set(drives.keys())
         diff = (
             drive_names - device_names
@@ -362,11 +347,11 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
     for drive, data in drives.items():
         if block_data := block_devices.get(drive):
             data["Partition"] = block_data
-            yield linux.Disk(id=drive, model=data.get("Info", {}).get("Model", ""), **data)
-        else:
-            raise ValueError(
-                f"{drive} not found in {drives.keys()}"
+            yield linux.Disk(
+                id=drive, model=data.get("Info", {}).get("Model", ""), **data
             )
+        else:
+            raise ValueError(f"{drive} not found in {drives.keys()}")
 
 
 def generate_html(
@@ -433,8 +418,6 @@ def generate_report(**kwargs) -> str:
     LOGGER.info("Report has been stored in %s", report_file)
     return report_file
 
-
-# todo: Remove monitoring features all together
 
 def monitor_disk(env: EnvConfig) -> Generator[linux.Disk]:
     """Monitors disk attributes based on the configuration.

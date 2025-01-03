@@ -2,8 +2,6 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from . import Usage
-
 
 class Message(BaseModel):
     """Log message with severity level.
@@ -470,8 +468,6 @@ class Disk(BaseModel):
     ata_smart_error_log: Optional[ATASummary] = None
     ata_smart_self_test_log: Optional[ATAStandard] = None
     ata_smart_selective_self_test_log: Optional[ATASmartSelectiveSelfTestLog] = None
-    # todo: Remove usage for macOS - usage should be mountpoint specific (if mounted)
-    usage: Optional[Usage] = None
     mountpoints: List[str] = None
 
     class Config:

@@ -93,10 +93,6 @@ class EnvConfig(BaseSettings):
 
     """
 
-    dry_run: bool = False
-    sample_partitions: str = "partitions.json"
-    sample_dump: str = "dump.txt"
-
     smart_lib: FilePath = get_smart_lib()
     disk_lib: FilePath = get_disk_lib()
     metrics: Metric | List[Metric] = Field(default_factory=list)
@@ -121,14 +117,6 @@ class EnvConfig(BaseSettings):
     disk_report: bool = True
     report_dir: str | DirectoryPath = "report"
     report_file: str = Field("disk_report_%m-%d-%Y_%I:%M_%p.html", pattern=r".*\.html$")
-
-    # noinspection PyMethodParameters
-    @field_validator("smart_lib", mode="before")
-    def validate_udisk_lib(cls, value: str) -> str:
-        """Validates the disk library path only when DRY_RUN is set to false."""
-        if os.environ.get("DRY_RUN", "false") == "true":
-            return __file__
-        return value
 
     # noinspection PyMethodParameters
     @field_validator("metrics", mode="after")

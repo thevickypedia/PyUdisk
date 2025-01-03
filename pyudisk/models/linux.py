@@ -3,8 +3,6 @@ from typing import List, Optional
 
 from pydantic import BaseModel, field_validator
 
-from . import Usage
-
 try:
     from enum import StrEnum
 except ImportError:
