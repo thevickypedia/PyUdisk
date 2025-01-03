@@ -122,14 +122,16 @@ def parse_block_devices(
     block_devices = {}
     block = None
     category = None
-    block_partitions = {
-        f"{linux.BlockDevices.head}{block_device.device.split('/')[-1]}:": block_device
+    block_partitions = [
+        f"{linux.BlockDevices.head}{block_device.device.split('/')[-1]}:"
         for block_device in get_partitions(env)
-    }
+    ]
     for line in input_data.splitlines():
-        if matching_block := block_partitions.get(line):
-            # Assing a temp value to avoid skipping loop when 'block' has a value
-            block = matching_block
+        if line in block_partitions:
+            # Assigning a placeholder value to avoid skipping loop when 'block' has a value
+            # This should be a unique value for each partition
+            # block = str(time.time_ns()) - another alternative
+            block = line
             block_devices[block] = {}
         elif block and line.strip() in (
             linux.BlockDevices.category1,
@@ -180,7 +182,13 @@ def parse_block_devices(
                 )
             ):
                 block_devices[block][key] = val
-    return block_devices
+    block_devices_updated = {}
+    for _, value in block_devices.items():
+        if block_devices_updated.get(value['Drive']):
+            block_devices_updated[value['Drive']].append(value)
+        else:
+            block_devices_updated[value['Drive']] = [value]
+    return block_devices_updated
 
 
 def get_disk_data_macos(env: EnvConfig) -> Generator[Dict[str, str | List[str]]]:
@@ -326,16 +334,12 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
                     LOGGER.error(error.errors())
         return
     smart_dump = get_smart_metrics(env)
-    block_devices = dict(
-        sorted(
-            parse_block_devices(env, smart_dump).items(),
-            key=lambda device: device[1]["Drive"],
-        )
-    )
+    block_devices = parse_block_devices(env, smart_dump)
     drives = {k: v for k, v in sorted(parse_drives(smart_dump).items())}
-    if len(block_devices) != len(drives):
+    # A drive can have multiple partitions, but any mounted drive should have at least one partition
+    if len(block_devices) < len(drives):
         LOGGER.warning(
-            f"Number of block devices [{len(block_devices)}] does not match the number of drives [{len(drives)}]"
+            f"Number of block devices [{len(block_devices)}] is less than the number of drives [{len(drives)}]"
         )
         device_names = set(v["Drive"] for v in block_devices.values())
         drive_names = set(drives.keys())
@@ -355,17 +359,14 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
         for key in optional_fields:
             if key not in drive.keys():
                 drive[key] = None
-    for (drive, data), (partition, block_data) in zip(
-        drives.items(), block_devices.items()
-    ):
-        if drive == block_data["Drive"]:
+    for drive, data in drives.items():
+        if block_data := block_devices.get(drive):
             data["Partition"] = block_data
+            yield linux.Disk(id=drive, model=data.get("Info", {}).get("Model", ""), **data)
         else:
             raise ValueError(
-                f"\n\n{drive} not found in {[bd['Drive'] for bd in block_devices.values()]}"
+                f"{drive} not found in {drives.keys()}"
             )
-        data["Usage"] = humanize_usage_metrics(psutil.disk_usage(partition.mountpoint))
-        yield linux.Disk(id=drive, model=data.get("Info", {}).get("Model", ""), **data)
 
 
 def generate_html(
@@ -432,6 +433,8 @@ def generate_report(**kwargs) -> str:
     LOGGER.info("Report has been stored in %s", report_file)
     return report_file
 
+
+# todo: Remove monitoring features all together
 
 def monitor_disk(env: EnvConfig) -> Generator[linux.Disk]:
     """Monitors disk attributes based on the configuration.

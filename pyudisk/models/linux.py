@@ -55,7 +55,7 @@ class Partition(BaseModel):
     IdUsage: Optional[str] = None
     ReadOnly: Optional[bool] = None
     Size: Optional[int] = None
-    MountPoints: Optional[List[str]] = None
+    MountPoints: Optional[str] = None
     Symlinks: Optional[List[str]] = None
 
 
@@ -153,5 +153,4 @@ class Disk(BaseModel):
     model: str
     Info: Optional[Info]
     Attributes: Optional[Attributes]
-    Partition: Optional[Partition]
-    Usage: Optional[Usage]
+    Partition: Optional[List[Partition]]
