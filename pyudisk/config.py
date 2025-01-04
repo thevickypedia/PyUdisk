@@ -1,14 +1,17 @@
 import os
 import platform
+import shutil
 from typing import Any, List, Optional
 
 from pyarchitecture.config import default_disk_lib
 from pydantic import BaseModel, DirectoryPath, Field, FilePath, HttpUrl, field_validator
 from pydantic_settings import BaseSettings
 
-from .models import linux
+from .models import udisk
 
 OPERATING_SYSTEM = platform.system()
+SMARTCTL_LIB = shutil.which("smartctl")
+UDISKCTL_LIB = shutil.which("udisksctl")
 
 try:
     from enum import StrEnum
@@ -28,6 +31,7 @@ class OperationSystem(StrEnum):
 
     darwin: str = "Darwin"
     linux: str = "Linux"
+    windows: str = "Windows"
 
 
 class Metric(BaseModel):
@@ -62,19 +66,35 @@ class Metric(BaseModel):
 def get_smart_lib() -> FilePath:
     """Returns filepath to the smart library as per the operating system."""
     if OPERATING_SYSTEM == OperationSystem.darwin:
+        if SMARTCTL_LIB:
+            return SMARTCTL_LIB
         smartctl1 = "/usr/local/bin/smartctl"
         smartctl2 = "/opt/homebrew/bin/smartctl"
         if os.path.isfile(smartctl1):
-            return FilePath(smartctl1)
+            return smartctl1
         if os.path.isfile(smartctl2):
-            return FilePath(smartctl2)
+            return smartctl2
         raise ValueError(
             "\n\tsmartctl not found!!\n\tPlease install using `brew install smartmontools`\n"
         )
+    if OPERATING_SYSTEM == OperationSystem.windows:
+        if SMARTCTL_LIB:
+            return SMARTCTL_LIB
+        smartctl1 = "C:\\Program Files\\smartmontools\\bin\\smartctl.EXE"
+        smartctl2 = "C:\\smartmontools\\bin\\smartctl.EXE"
+        if os.path.isfile(smartctl1):
+            return smartctl1
+        if os.path.isfile(smartctl2):
+            return smartctl2
+        raise ValueError(
+            "\n\tsmartctl not found!!\n\tPlease install using `winget install smartmontools.smartmontools`\n"
+        )
     if OPERATING_SYSTEM == OperationSystem.linux:
+        if UDISKCTL_LIB:
+            return UDISKCTL_LIB
         udiskctl = "/usr/bin/udisksctl"
         if os.path.isfile(udiskctl):
-            return FilePath(udiskctl)
+            return udiskctl
         raise ValueError(
             "\n\tudisksctl not found!!\n\tPlease install using `sudo apt install udisks2`\n"
         )
@@ -130,7 +150,7 @@ class EnvConfig(BaseSettings):
                 for dtype in dtypes.get("anyOf")
                 if dtype.get("type", "") != "null"
             ]
-            for name, dtypes in linux.Attributes.model_json_schema()
+            for name, dtypes in udisk.Attributes.model_json_schema()
             .get("properties")
             .items()
         }

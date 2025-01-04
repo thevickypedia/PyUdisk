@@ -22,6 +22,7 @@ class SystemPartitions(BaseModel):
             "/dev/loop",
             "/run/user",
             "/run/snapd",
+            "/System/Volumes",
         ]
     )
     system_fstypes: List[str] = Field(

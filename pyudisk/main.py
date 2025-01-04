@@ -1,306 +1,22 @@
-import json
 import os
 import pathlib
-import subprocess
 from collections.abc import Generator
 from datetime import datetime
-from typing import Any, Dict, List, NoReturn
+from typing import Dict, List, NoReturn
 
-import psutil
-import pyarchitecture
-from psutil._common import sdiskpart
-from pydantic import FilePath, NewPath, ValidationError
+from pydantic import NewPath, ValidationError
 
 from .config import OPERATING_SYSTEM, EnvConfig, OperationSystem
+from .disk_data import get_disk_data
 from .logger import LOGGER
-from .models import SystemPartitions, darwin, linux
+from .metrics import get_smart_metrics, get_udisk_metrics
+from .models import smartctl, udisk
 from .notification import notification_service, send_report
-from .util import size_converter, standard
+from .parsers import parse_block_devices, parse_drives
+from .util import standard
 
 
-def get_partitions(env: EnvConfig) -> Generator[sdiskpart]:
-    """Gathers disk information using the 'psutil' library.
-
-    Args:
-        env: Environment variables configuration.
-
-    Yields:
-        sdiskpart:
-        Yields the partition datastructure.
-    """
-    system_partitions = SystemPartitions()
-    for partition in psutil.disk_partitions():
-        if (
-            not any(
-                partition.mountpoint.startswith(mnt)
-                for mnt in system_partitions.system_mountpoints
-            )
-            and partition.fstype not in system_partitions.system_fstypes
-        ):
-            yield partition
-
-
-def get_smart_metrics(env: EnvConfig) -> str:
-    """Gathers disk information using the dump from 'udisksctl' command.
-
-    Args:
-        env: Environment variables configuration.
-
-    Returns:
-        str:
-        Returns the output from disk util dump.
-    """
-    try:
-        output = subprocess.check_output(f"{env.smart_lib} dump", shell=True)
-    except subprocess.CalledProcessError as error:
-        result = error.output.decode(encoding="UTF-8").strip()
-        LOGGER.error(f"[{error.returncode}]: {result}\n")
-        return ""
-    return output.decode(encoding="UTF-8")
-
-
-def parse_drives(input_data: str) -> Dict[str, Any]:
-    """Parses drivers' information from the dump into a datastructure.
-
-    Args:
-        input_data: Smart metrics dump.
-
-    Returns:
-        Dict[str, str]:
-        Returns a dictionary of drives' metrics as key-value pairs.
-    """
-    formatted = {}
-    head = None
-    category = None
-    for line in input_data.splitlines():
-        if line.startswith(linux.Drives.head):
-            head = line.replace(linux.Drives.head, "").rstrip(":").strip()
-            formatted[head] = {}
-        elif line.strip() in (linux.Drives.category1, linux.Drives.category2):
-            category = (
-                line.replace(linux.Drives.category1, "Info")
-                .replace(linux.Drives.category2, "Attributes")
-                .strip()
-            )
-            formatted[head][category] = {}
-        elif head and category:
-            try:
-                key, val = line.strip().split(":", 1)
-                key = key.strip()
-                val = val.strip()
-            except ValueError as error:
-                assert (
-                    str(error) == "not enough values to unpack (expected 2, got 1)"
-                ), error
-                continue
-            formatted[head][category][key] = val
-    return formatted
-
-
-def parse_block_devices(
-    env: EnvConfig, input_data: str
-) -> Dict[str, List[Dict[str, str]]]:
-    """Parses block_devices' information from the dump into a datastructure.
-
-    Args:
-        env: Environment variables configuration.
-        input_data: Smart metrics dump.
-
-    Returns:
-        Dict[str, List[Dict[str, str]]]:
-        Returns a dictionary of block_devices' metrics as key-value pairs.
-    """
-    block_devices = {}
-    block = None
-    category = None
-    block_partitions = [
-        f"{linux.BlockDevices.head}{block_device.device.split('/')[-1]}:"
-        for block_device in get_partitions(env)
-    ]
-    for line in input_data.splitlines():
-        if line in block_partitions:
-            # Assigning a placeholder value to avoid skipping loop when 'block' has a value
-            # This should be a unique value for each partition
-            # block = str(time.time_ns()) - another alternative
-            block = line
-            block_devices[block] = {}
-        elif block and line.strip() in (
-            linux.BlockDevices.category1,
-            linux.BlockDevices.category2,
-            linux.BlockDevices.category3,
-        ):
-            category = (
-                line.replace(linux.BlockDevices.category1, "Block")
-                .replace(linux.BlockDevices.category2, "Filesystem")
-                .replace(linux.BlockDevices.category3, "Partition")
-                .strip()
-            )
-        elif block and category:
-            try:
-                key, val = line.strip().split(":", 1)
-                key = key.strip()
-                val = val.strip()
-                if key == "Drive":
-                    val = eval(val).replace(linux.Drives.head, "")
-                if key == "Symlinks":
-                    block_devices[block][key] = [val]
-            except ValueError as error:
-                if block_devices[block].get("Symlinks") and line.strip():
-                    block_devices[block]["Symlinks"].append(line.strip())
-                assert (
-                    str(error) == "not enough values to unpack (expected 2, got 1)"
-                ), error
-                continue
-            if (
-                # This will ensure that new data is not written to old key
-                not block_devices[block].get(key)
-                # 'org.freedesktop.UDisks2.Partition' records are skipped
-                and category in ("Block", "Filesystem")
-                # Only store keys that provide value
-                and key
-                in (
-                    "Device",
-                    "DeviceNumber",
-                    "Drive",
-                    "Id",
-                    "IdLabel",
-                    "IdType",
-                    "IdUUID",
-                    "IdUsage",
-                    "ReadOnly",
-                    "Size",
-                    "MountPoints",
-                )
-            ):
-                block_devices[block][key] = val
-    block_devices_updated = {}
-    for _, value in block_devices.items():
-        if block_devices_updated.get(value["Drive"]):
-            block_devices_updated[value["Drive"]].append(value)
-        else:
-            block_devices_updated[value["Drive"]] = [value]
-    return block_devices_updated
-
-
-def get_disk_data_macos(env: EnvConfig) -> Generator[Dict[str, str | List[str]]]:
-    """Get disk information for macOS.
-
-    Args:
-        env: Environment variables configuration.
-
-    Yields:
-        Dict[str, str | List[str]]:
-        Yields a dictionary of device information as key-value pairs.
-    """
-    try:
-        # 1: Attempt to extract physical disks from PyArchitecture
-        if all_disks := pyarchitecture.disks.get_all_disks(env.disk_lib):
-            yield from all_disks
-        else:
-            raise ValueError("Failed to load physical disk data")
-    except Exception as error:
-        # The accuracy of methods 2, and 3 are questionable - it may vary from device to device
-        # But almost all macOS machines should be caught by the 1st method
-        LOGGER.error(error)
-        # 2: Assume disks with non-zero write count as physical disks
-        # disk_io_counters fn will fetch disks rather than partitions (similar to output from 'diskutil list')
-        if not (
-            physical_disks := [
-                disk_id
-                for disk_id, disk_io in psutil.disk_io_counters(perdisk=True).items()
-                if min(disk_io.write_bytes, disk_io.write_count, disk_io.write_time)
-                != 0
-            ]
-        ):
-            # If there is only one physical disk, then set the mountpoint to root (/)
-            if len(physical_disks) == 1:
-                yield dict(
-                    size=size_converter(psutil.disk_usage("/").total),
-                    device_id=physical_disks[0],
-                    node=f"/dev/{physical_disks[0]}",
-                    mountpoints=["/"],
-                )
-            else:
-                # If there are multiple physical disks, then set the mountpoint to disk path itself
-                for physical_disk in physical_disks:
-                    yield dict(
-                        size=size_converter(psutil.disk_usage("/").total),
-                        device_id=physical_disk,
-                        node=f"/dev/{physical_disk}",
-                        mountpoints=[f"/dev/{physical_disk}"],
-                    )
-        else:
-            # 3. If both the methods fail, then fallback to disk partitions
-            LOGGER.warning(
-                "No physical disks found through IO counters, using partitions instead"
-            )
-            for partition in get_partitions(env):
-                if (
-                    partition.mountpoint.startswith("/System/Volumes")
-                    or "Recovery" in partition.mountpoint
-                ):
-                    continue
-                yield dict(
-                    size=size_converter(psutil.disk_usage(partition.mountpoint).total),
-                    device_id=partition.device.lstrip("/dev/"),
-                    node=partition.device,
-                    mountpoints=[partition.device],
-                )
-
-
-def get_smart_metrics_macos(
-    smart_lib: FilePath, device_info: Dict[str, str | List[str]]
-) -> dict:
-    """Gathers disk information using the 'smartctl' command on macOS.
-
-    Args:
-        smart_lib: Library path to 'smartctl' command.
-        device_info: Device information retrieved.
-
-    Returns:
-        Disk:
-        Returns the Disk object with the gathered metrics.
-    """
-    device_id = device_info["node"]
-    mountpoints = device_info["mountpoints"]
-    try:
-        result = subprocess.run(
-            [smart_lib, "-a", device_id, "--json"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            LOGGER.debug(
-                "smartctl returned non-zero exit code %d for %s",
-                result.returncode,
-                device_id,
-            )
-        output = json.loads(result.stdout)
-    except json.JSONDecodeError as error:
-        LOGGER.error("Failed to decode JSON output from smartctl: %s", error)
-        output = {}
-    except subprocess.CalledProcessError as error:
-        result = error.output.decode(encoding="UTF-8").strip()
-        LOGGER.error("[%d]: %s", error.returncode, result)
-        output = {}
-    try:
-        output["device"] = output.get(
-            "device", darwin.Device(name=device_id, info_name=device_id).model_dump()
-        )
-        output["model_name"] = output.get("model_name", device_info.get("name"))
-        output["mountpoints"] = mountpoints
-        return output
-    except ValidationError as error:
-        LOGGER.error(error.errors())
-
-
-def raise_pyarch_error(device: Dict[str, str]) -> NoReturn:
-    """Raises value error for the device specified."""
-    raise ValueError(f"'node' and 'device_id' not found in {device}")
-
-
-def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
+def smart_metrics(env: EnvConfig) -> Generator[udisk.Disk | smartctl.Disk]:
     """Gathers smart metrics using udisksctl dump, and constructs a Disk object.
 
     Args:
@@ -310,16 +26,18 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
         Disk:
         Yields the Disk object from the generated Dataframe.
     """
-    if OPERATING_SYSTEM == OperationSystem.darwin:
-        for device_info in get_disk_data_macos(env):
-            if metrics := get_smart_metrics_macos(env.smart_lib, device_info):
+    if OPERATING_SYSTEM in (OperationSystem.darwin, OperationSystem.windows):
+        for device_info in get_disk_data(
+            env, OPERATING_SYSTEM != OperationSystem.windows
+        ):
+            if metrics := get_smart_metrics(env.smart_lib, device_info):
                 try:
-                    yield darwin.Disk(**metrics)
+                    yield smartctl.Disk(**metrics)
                 except ValidationError as error:
                     LOGGER.error(error.errors())
         return
-    smart_dump = get_smart_metrics(env)
-    block_devices = parse_block_devices(env, smart_dump)
+    smart_dump = get_udisk_metrics(env)
+    block_devices = parse_block_devices(smart_dump)
     drives = {k: v for k, v in sorted(parse_drives(smart_dump).items())}
     diff = set()
     # Enable mount warning by default (log warning messages if disk is not mounted)
@@ -339,7 +57,7 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
             LOGGER.warning("UNmounted drive(s) found - '%s'", ", ".join(diff))
     optional_fields = [
         k
-        for k, v in linux.Disk.model_json_schema().get("properties").items()
+        for k, v in udisk.Disk.model_json_schema().get("properties").items()
         if v.get("anyOf", [{}])[-1].get("type", "") == "null"
     ]
     # S.M.A.R.T metrics can be null, but the keys are mandatory
@@ -350,7 +68,7 @@ def smart_metrics(env: EnvConfig) -> Generator[linux.Disk | darwin.Disk]:
     for drive, data in drives.items():
         if block_data := block_devices.get(drive):
             data["Partition"] = block_data
-            yield linux.Disk(
+            yield udisk.Disk(
                 id=drive, model=data.get("Info", {}).get("Model", ""), **data
             )
         elif drive not in diff:
@@ -423,7 +141,7 @@ def generate_report(**kwargs) -> str:
     return report_file
 
 
-def monitor_disk(env: EnvConfig) -> Generator[linux.Disk]:
+def monitor_disk(env: EnvConfig) -> Generator[udisk.Disk]:
     """Monitors disk attributes based on the configuration.
 
     Args:
