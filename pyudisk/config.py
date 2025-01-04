@@ -7,7 +7,7 @@ from pyarchitecture.config import default_disk_lib
 from pydantic import BaseModel, DirectoryPath, Field, FilePath, HttpUrl, field_validator
 from pydantic_settings import BaseSettings
 
-from .models import udisk
+from . import models
 
 OPERATING_SYSTEM = platform.system()
 SMARTCTL_LIB = shutil.which("smartctl")
@@ -150,7 +150,7 @@ class EnvConfig(BaseSettings):
                 for dtype in dtypes.get("anyOf")
                 if dtype.get("type", "") != "null"
             ]
-            for name, dtypes in udisk.Attributes.model_json_schema()
+            for name, dtypes in models.udisk.Attributes.model_json_schema()
             .get("properties")
             .items()
         }
@@ -207,3 +207,6 @@ class EnvConfig(BaseSettings):
 
         env_file = os.environ.get("env_file") or os.environ.get("ENV_FILE") or ".env"
         extra = "ignore"
+
+
+env: EnvConfig = EnvConfig  # noqa: TypeCheck

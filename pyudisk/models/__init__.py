@@ -2,6 +2,8 @@ from typing import List
 
 from pydantic import BaseModel, Field
 
+from . import smartctl, udisk  # noqa: F401
+
 
 class SystemPartitions(BaseModel):
     """System partitions' mountpoints and fstypes."""

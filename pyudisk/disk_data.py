@@ -5,10 +5,8 @@ import psutil
 import pyarchitecture
 from psutil._common import sdiskpart
 
-from .config import EnvConfig
+from . import config, models, util
 from .logger import LOGGER
-from .models import SystemPartitions
-from .util import size_converter
 
 
 def get_partitions() -> Generator[sdiskpart]:
@@ -18,7 +16,7 @@ def get_partitions() -> Generator[sdiskpart]:
         sdiskpart:
         Yields the partition datastructure.
     """
-    system_partitions = SystemPartitions()
+    system_partitions = models.SystemPartitions()
     for partition in psutil.disk_partitions():
         is_not_system_mount = all(
             not partition.mountpoint.startswith(mnt)
@@ -53,7 +51,7 @@ def get_disk_io() -> Generator[Dict[str, str | List[str]]]:
         # If there is only one physical disk, then set the mountpoint to root (/)
         if len(physical_disks) == 1:
             yield dict(
-                size=size_converter(psutil.disk_usage("/").total),
+                size=util.size_converter(psutil.disk_usage("/").total),
                 device_id=physical_disks[0],
                 node=f"/dev/{physical_disks[0]}",
                 mountpoints=["/"],
@@ -62,7 +60,7 @@ def get_disk_io() -> Generator[Dict[str, str | List[str]]]:
             # If there are multiple physical disks, then set the mountpoint to disk path itself
             for physical_disk in physical_disks:
                 yield dict(
-                    size=size_converter(psutil.disk_usage("/").total),
+                    size=util.size_converter(psutil.disk_usage("/").total),
                     device_id=physical_disk,
                     node=f"/dev/{physical_disk}",
                     mountpoints=[f"/dev/{physical_disk}"],
@@ -78,18 +76,17 @@ def partitions() -> Generator[Dict[str, str | List[str]]]:
     """
     for partition in get_partitions():
         yield dict(
-            size=size_converter(psutil.disk_usage(partition.mountpoint).total),
+            size=util.size_converter(psutil.disk_usage(partition.mountpoint).total),
             device_id=partition.device.lstrip("/dev/"),
             node=partition.device,
             mountpoints=[partition.device],
         )
 
 
-def get_disk_data(env: EnvConfig, posix: bool) -> List[Dict[str, str | List[str]]]:
+def get_disk_data(posix: bool) -> List[Dict[str, str | List[str]]]:
     """Get disk information for macOS and Windows machines.
 
     Args:
-        env: Environment variables configuration.
         posix: If the operating system is POSIX compliant.
 
     Returns:
@@ -98,7 +95,7 @@ def get_disk_data(env: EnvConfig, posix: bool) -> List[Dict[str, str | List[str]
     """
     if posix:
         # 1: Attempt to extract physical disks from PyArchitecture
-        if pyarch := pyarchitecture.disks.get_all_disks(env.disk_lib):
+        if pyarch := pyarchitecture.disks.get_all_disks(config.env.disk_lib):
             return pyarch
         # 2: Assume disks with non-zero write count as physical disks
         # disk_io_counters fn will fetch disks rather than partitions (similar to output from 'diskutil list')

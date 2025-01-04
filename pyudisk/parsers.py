@@ -1,7 +1,6 @@
 from typing import Any, Dict, List
 
-from .disk_data import get_partitions
-from .models import udisk
+from . import disk_data, models
 
 
 def parse_drives(input_data: str) -> Dict[str, Any]:
@@ -18,13 +17,16 @@ def parse_drives(input_data: str) -> Dict[str, Any]:
     head = None
     category = None
     for line in input_data.splitlines():
-        if line.startswith(udisk.Drives.head):
-            head = line.replace(udisk.Drives.head, "").rstrip(":").strip()
+        if line.startswith(models.udisk.Drives.head):
+            head = line.replace(models.udisk.Drives.head, "").rstrip(":").strip()
             formatted[head] = {}
-        elif line.strip() in (udisk.Drives.category1, udisk.Drives.category2):
+        elif line.strip() in (
+            models.udisk.Drives.category1,
+            models.udisk.Drives.category2,
+        ):
             category = (
-                line.replace(udisk.Drives.category1, "Info")
-                .replace(udisk.Drives.category2, "Attributes")
+                line.replace(models.udisk.Drives.category1, "Info")
+                .replace(models.udisk.Drives.category2, "Attributes")
                 .strip()
             )
             formatted[head][category] = {}
@@ -56,8 +58,8 @@ def parse_block_devices(input_data: str) -> Dict[str, List[Dict[str, str]]]:
     block = None
     category = None
     block_partitions = [
-        f"{udisk.BlockDevices.head}{block_device.device.split('/')[-1]}:"
-        for block_device in get_partitions()
+        f"{models.udisk.BlockDevices.head}{block_device.device.split('/')[-1]}:"
+        for block_device in disk_data.get_partitions()
     ]
     for line in input_data.splitlines():
         if line in block_partitions:
@@ -67,14 +69,14 @@ def parse_block_devices(input_data: str) -> Dict[str, List[Dict[str, str]]]:
             block = line
             block_devices[block] = {}
         elif block and line.strip() in (
-            udisk.BlockDevices.category1,
-            udisk.BlockDevices.category2,
-            udisk.BlockDevices.category3,
+            models.udisk.BlockDevices.category1,
+            models.udisk.BlockDevices.category2,
+            models.udisk.BlockDevices.category3,
         ):
             category = (
-                line.replace(udisk.BlockDevices.category1, "Block")
-                .replace(udisk.BlockDevices.category2, "Filesystem")
-                .replace(udisk.BlockDevices.category3, "Partition")
+                line.replace(models.udisk.BlockDevices.category1, "Block")
+                .replace(models.udisk.BlockDevices.category2, "Filesystem")
+                .replace(models.udisk.BlockDevices.category3, "Partition")
                 .strip()
             )
         elif block and category:
@@ -83,7 +85,7 @@ def parse_block_devices(input_data: str) -> Dict[str, List[Dict[str, str]]]:
                 key = key.strip()
                 val = val.strip()
                 if key == "Drive":
-                    val = eval(val).replace(udisk.Drives.head, "")
+                    val = eval(val).replace(models.udisk.Drives.head, "")
                 if key == "Symlinks":
                     block_devices[block][key] = [val]
             except ValueError as error:

@@ -36,7 +36,8 @@ pip install PyUdisk
 import pyudisk
 
 if __name__ == '__main__':
-    pyudisk.monitor()
+    for metric in pyudisk.smart_metrics():
+        print(metric)
 ```
 
 **CLI**
