@@ -1,6 +1,10 @@
 Release Notes
 =============
 
+v2.0.1 (01/05/2025)
+-------------------
+- Bump the minimum required version for `PyArchitecture`
+
 v2.0.0 (01/05/2025)
 -------------------
 - Includes windows compatibility

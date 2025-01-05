@@ -120,4 +120,4 @@ Licensed under the [MIT License][license]
 [pypi]: https://pypi.org/project/PyUdisk
 [pypi-files]: https://pypi.org/project/PyUdisk/#files
 [pypi-repo]: https://packaging.python.org/tutorials/packaging-projects/
-[release-notes]: https://github.com/thevickypedia/PyUdisk/blob/master/release_notes.rst
+[release-notes]: https://github.com/thevickypedia/PyUdisk/blob/main/release_notes.rst
