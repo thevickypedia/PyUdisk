@@ -73,6 +73,17 @@ pyudisk start
 - **REPORT_DIR**: Directory to save disk reports. Default: `report`
 - **REPORT_FILE**: Filename for disk reports. Default format: `disk_report_%m-%d-%Y_%I:%M_%p.html`
 
+## [Release Notes][release-notes]
+**Requirement**
+```shell
+python -m pip install gitverse
+```
+
+**Usage**
+```shell
+gitverse-release reverse -f release_notes.rst -t 'Release Notes'
+```
+
 ## Linting
 `pre-commit` will ensure linting
 
@@ -109,3 +120,4 @@ Licensed under the [MIT License][license]
 [pypi]: https://pypi.org/project/PyUdisk
 [pypi-files]: https://pypi.org/project/PyUdisk/#files
 [pypi-repo]: https://packaging.python.org/tutorials/packaging-projects/
+[release-notes]: https://github.com/thevickypedia/PyUdisk/blob/master/release_notes.rst
