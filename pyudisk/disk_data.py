@@ -1,20 +1,19 @@
 from collections.abc import Generator
-from typing import Dict, List
+from typing import Dict, List, NamedTuple
 
 import psutil
 import pyarchitecture
-from psutil._common import sdiskpart
 
 from . import config, models, util
 from .logger import LOGGER
 
 
-def get_partitions() -> Generator[sdiskpart]:
+def get_partitions() -> Generator[NamedTuple]:
     """Gathers disk information using the 'psutil' library.
 
     Yields:
-        sdiskpart:
-        Yields the partition datastructure.
+        NamedTuple:
+        Yields the partition data structure.
     """
     system_partitions = models.SystemPartitions()
     for partition in psutil.disk_partitions():
